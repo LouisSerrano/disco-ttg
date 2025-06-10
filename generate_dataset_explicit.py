@@ -15,7 +15,9 @@ length_of_domain = 16.0
 number_of_time_steps = 40001
 number_of_snapshots = 50
 spatial_size = 512
-batch_size = 100  # for generation
+n_unique_ics = 1000
+n_test_ics = 100  # 10% of n_unique_ics
+batch_size = n_test_ics  # Use n_test_ics as the batch size for all splits
 
 # Initial conditions
 initial_conditions = [
@@ -43,8 +45,6 @@ test_diffusivities = train_diffusivities
 
 fixed_initial_conditions = True  # Set to False for random ICs per split
 fixed_ic_seed = 12345           # Seed for reproducibility
-n_unique_ics = 1000
-n_test_ics = 100  # 10% of n_unique_ics
 
 # Pre-generate ICs if needed
 def generate_fixed_initial_conditions(n_total, seed):
@@ -77,7 +77,7 @@ if fixed_initial_conditions:
 else:
     train_ics = val_ics = test_ics = None
     train_param_grid = [(v, 0.0) for v in train_velocities] + [(0.0, d) for d in train_diffusivities]
-    val_param_grid = train_param_grid
+    val_param_grid = [(v, 0.0) for v in val_velocities] + [(0.0, d) for d in val_diffusivities]
     test_param_grid = list(product(test_velocities, test_diffusivities))
     n_train = 200
     n_val = 100
@@ -89,9 +89,13 @@ def generate_set(ics, param_grid):
     diffusivities = []
     ic_indices = []
     t = torch.linspace(0, total_simulation_time, number_of_snapshots)
+    n_ics = len(ics)
     for (v, d) in param_grid:
-        for ic_idx, (u0, ic_id) in enumerate(ics):
-            u0s = u0.unsqueeze(0)  # shape [1, spatial_size]
+        # Batch over ICs
+        for batch_start in range(0, n_ics, batch_size):
+            batch_ics = ics[batch_start:batch_start+batch_size]
+            u0s = torch.stack([u0 for (u0, _) in batch_ics])  # shape [batch, spatial_size]
+            ic_ids = [ic_id for (_, ic_id) in batch_ics]
             op = AdvectionDiffusionExplicit(
                 velocity=v,
                 diffusivity=d,
@@ -100,11 +104,11 @@ def generate_set(ics, param_grid):
                 number_of_time_steps=number_of_time_steps,
                 number_of_snapshots=number_of_snapshots
             )
-            ut = op(u0s)
+            ut = op(u0s)  # shape [batch, n_snapshots, spatial_size]
             trajectories.append(ut.cpu().numpy())
-            velocities.append(v)
-            diffusivities.append(d)
-            ic_indices.append(ic_id)
+            velocities.extend([v] * len(batch_ics))
+            diffusivities.extend([d] * len(batch_ics))
+            ic_indices.extend(ic_ids)
     # Concatenate
     trajectories = np.concatenate(trajectories, axis=0)
     velocities = np.array(velocities)
