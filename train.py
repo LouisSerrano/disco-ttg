@@ -24,7 +24,7 @@ class TemporalDataset(torch.utils.data.Dataset):
         return len(self.u)
 
     def __getitem__(self, idx):
-        images = torch.from_numpy(self.u[idx]).unsqueeze(-2) # add channel dimension
+        images = torch.from_numpy(self.u[idx]).unsqueeze(-2).float() # add channel dimension
         images = images[::self.sub_t, ..., ::self.sub_x]
         max_start_index = images.shape[0] - self.slice_size
         if max_start_index < 0:

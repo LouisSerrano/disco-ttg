@@ -16,10 +16,41 @@ length_of_domain = 16.0
 number_of_snapshots = 100
 spatial_size = 256 #8192 #1024
 number_of_time_steps = total_simulation_time*10000+1 #40001
-n_unique_ics = 10 #1000
-n_test_ics = 10 #100  # 10% of n_unique_ics
-print(os.cpu_count())
-batch_size = min(50, n_test_ics)  # Use n_test_ics as the batch size for all splits
+
+setting = "dense"
+
+if setting == "scarce":
+    # Parameter grids
+    train_velocities = [0.01, 0.05, 0.1, 0.5, 1]
+    train_diffusivities = [0.001, 0.01, 0.05, 0.1, 0.5]
+    val_velocities = [0.03, 0.075, 0.3, 0.75, 1.25]
+    val_diffusivities = [0.005, 0.03, 0.075, 0.3, 0.75]
+    test_velocities = train_velocities
+    test_diffusivities = train_diffusivities
+    n_unique_ics = 1000 #1000
+    n_test_ics = 100 #100  # 10% of n_unique_ics
+
+elif setting == "dense":
+    train_velocities = [
+        0.01, 0.015, 0.022, 0.032, 0.045, 0.06, 0.08, 0.10, 0.13, 0.16,
+        0.20, 0.25, 0.32, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.0
+    ]
+    train_diffusivities = [
+        0.001, 0.0015, 0.0022, 0.0032, 0.0045, 0.006, 0.008, 0.01, 0.013, 0.016,
+        0.02, 0.025, 0.032, 0.04, 0.05, 0.07, 0.10, 0.15, 0.25, 0.5
+    ]
+    val_velocities = [
+        0.012, 0.018, 0.028, 0.038, 0.055, 0.085, 0.18, 0.36, 0.72, 0.95
+    ]
+    val_diffusivities = [
+        0.0012, 0.0018, 0.0028, 0.004, 0.0065, 0.012, 0.022, 0.045, 0.12, 0.35
+    ]
+    test_velocities = train_velocities
+    test_diffusivities = train_diffusivities
+
+    n_unique_ics = 250 #1000
+    n_test_ics = 25 #100  # 10% of n_unique_ics
+
 
 # Initial conditions
 initial_conditions = [
@@ -37,13 +68,7 @@ initial_conditions = [
 ]
 initial_condition_names = [ic[0].__name__ for ic in initial_conditions]
 
-# Parameter grids
-train_velocities = [0.01, 0.05, 0.1, 0.5, 1]
-train_diffusivities = [0.001, 0.01, 0.05, 0.1, 0.5]
-val_velocities = [0.03, 0.075, 0.3, 0.75, 1.25]
-val_diffusivities = [0.005, 0.03, 0.075, 0.3, 0.75]
-test_velocities = train_velocities
-test_diffusivities = train_diffusivities
+
 
 fixed_initial_conditions = True  # Set to False for random ICs per split
 fixed_ic_seed = 12345           # Seed for reproducibility
@@ -85,7 +110,7 @@ else:
     n_val = 100
     n_test = 100
 
-def generate_set(ics, param_grid):
+def generate_set(ics, param_grid, batch_size=50):
     trajectories = []
     velocities = []
     diffusivities = []
@@ -129,15 +154,15 @@ if __name__ == "__main__":
     print(f"Generating train set with {len(train_ics)} ICs and {len(train_param_grid)} param settings...")
     train_results = calculate_numbers(train_velocities, train_diffusivities, "Train", dt=total_simulation_time/number_of_time_steps, dx=length_of_domain/spatial_size)
     train = generate_set(train_ics, train_param_grid)
-    np.savez_compressed(os.path.join(data_dir, "train_ps.npz"), **train)
+    np.savez_compressed(os.path.join(data_dir, f"train_{setting}.npz"), **train)
 
     print(f"Generating val set with {len(val_ics)} ICs and {len(val_param_grid)} param settings...")
     val_results = calculate_numbers(val_velocities, val_diffusivities, "Validation",  dt=total_simulation_time/number_of_time_steps, dx=length_of_domain/spatial_size)
     val = generate_set(val_ics, val_param_grid)
-    np.savez_compressed(os.path.join(data_dir, "val_ps.npz"), **val)
+    np.savez_compressed(os.path.join(data_dir, f"val_{setting}.npz"), **val)
 
     print(f"Generating test set with {len(test_ics)} ICs and {len(test_param_grid)} param settings...")
     test_results = calculate_numbers(test_velocities, test_diffusivities, "Test",  dt=total_simulation_time/number_of_time_steps, dx=length_of_domain/spatial_size)
-    test = generate_set(test_ics, test_param_grid)
-    np.savez_compressed(os.path.join(data_dir, "test_ps.npz"), **test)
+    test = generate_set(test_ics, test_param_grid, batch_size=min(50, n_test_ics))
+    np.savez_compressed(os.path.join(data_dir, f"test_{setting}.npz"), **test)
     print("Done.") 
