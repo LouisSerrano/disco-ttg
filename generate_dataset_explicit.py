@@ -3,21 +3,23 @@ import torch
 import os
 from itertools import product
 from advection_diffusion import (
-    Fractaloid, FourierSmooth, WhiteNoise, Dirac, Rectangle, Triangle, HalfEllipse, Sine, GaussianMixtures, SmoothPlateau, AdvectionDiffusionExplicit
+    Fractaloid, FourierSmooth, WhiteNoise, Dirac, Rectangle, Triangle, HalfEllipse, Sine, GaussianMixtures, SmoothPlateau, AdvectionDiffusionExplicit, AdvectionDiffusionLaxWendroff, AdvectionDiffusionImplicit, calculate_numbers
 )
+from advection_diffusion_ps import AdvectionDiffusionPseudospectral
 
 # Settings
 data_dir = "/mnt/home/lserrano/disco-ball/datasets"
 os.makedirs(data_dir, exist_ok=True)
 
-total_simulation_time = 4
+total_simulation_time = 10
 length_of_domain = 16.0
-number_of_time_steps = 40001
-number_of_snapshots = 50
-spatial_size = 512
-n_unique_ics = 1000
-n_test_ics = 100  # 10% of n_unique_ics
-batch_size = n_test_ics  # Use n_test_ics as the batch size for all splits
+number_of_snapshots = 100
+spatial_size = 256 #8192 #1024
+number_of_time_steps = total_simulation_time*10000+1 #40001
+n_unique_ics = 10 #1000
+n_test_ics = 10 #100  # 10% of n_unique_ics
+print(os.cpu_count())
+batch_size = min(50, n_test_ics)  # Use n_test_ics as the batch size for all splits
 
 # Initial conditions
 initial_conditions = [
@@ -96,7 +98,7 @@ def generate_set(ics, param_grid):
             batch_ics = ics[batch_start:batch_start+batch_size]
             u0s = torch.stack([u0 for (u0, _) in batch_ics])  # shape [batch, spatial_size]
             ic_ids = [ic_id for (_, ic_id) in batch_ics]
-            op = AdvectionDiffusionExplicit(
+            op = AdvectionDiffusionPseudospectral( #AdvectionDiffusionExplicit(
                 velocity=v,
                 diffusivity=d,
                 length_of_domain=length_of_domain,
@@ -123,13 +125,19 @@ def generate_set(ics, param_grid):
     )
 
 if __name__ == "__main__":
+
     print(f"Generating train set with {len(train_ics)} ICs and {len(train_param_grid)} param settings...")
+    train_results = calculate_numbers(train_velocities, train_diffusivities, "Train", dt=total_simulation_time/number_of_time_steps, dx=length_of_domain/spatial_size)
     train = generate_set(train_ics, train_param_grid)
-    np.savez_compressed(os.path.join(data_dir, "train_explicit.npz"), **train)
+    np.savez_compressed(os.path.join(data_dir, "train_ps.npz"), **train)
+
     print(f"Generating val set with {len(val_ics)} ICs and {len(val_param_grid)} param settings...")
+    val_results = calculate_numbers(val_velocities, val_diffusivities, "Validation",  dt=total_simulation_time/number_of_time_steps, dx=length_of_domain/spatial_size)
     val = generate_set(val_ics, val_param_grid)
-    np.savez_compressed(os.path.join(data_dir, "val_explicit.npz"), **val)
+    np.savez_compressed(os.path.join(data_dir, "val_ps.npz"), **val)
+
     print(f"Generating test set with {len(test_ics)} ICs and {len(test_param_grid)} param settings...")
+    test_results = calculate_numbers(test_velocities, test_diffusivities, "Test",  dt=total_simulation_time/number_of_time_steps, dx=length_of_domain/spatial_size)
     test = generate_set(test_ics, test_param_grid)
-    np.savez_compressed(os.path.join(data_dir, "test_explicit.npz"), **test)
+    np.savez_compressed(os.path.join(data_dir, "test_ps.npz"), **test)
     print("Done.") 

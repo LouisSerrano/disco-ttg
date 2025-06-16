@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import os
-
+from scipy.linalg import solve_banded
 
 @contextlib.contextmanager
 def set_seed(seed, backend='numpy'):
@@ -336,7 +336,9 @@ class FourierBased(ShiftedPattern):
         u0 = torch.zeros(batch_size, self.size)
 
         # phases 0, \theta, 2x\theta, ... degree x \theta
-        phase = torch.linspace(0, 2*torch.pi, self.patch_size)
+        #phase = torch.linspace(0, 2*torch.pi, self.patch_size)
+        phase = np.linspace(0, 2*torch.pi, self.patch_size, endpoint=False)
+        phase = torch.from_numpy(phase).float()
         phase = torch.arange(1,self.degree+1)[:,None] * phase[None,:]
 
         # random coefficients a_0, a_1, ... a_degree
@@ -515,6 +517,297 @@ class AdvectionDiffusionExplicit(Operator):
                 u_history.append(u_n.copy())
         u_hist_np = np.stack(u_history, axis=1)  # [batch_size, N_snapshots, Nx]
         return torch.from_numpy(u_hist_np).to(u.device)
+
+
+class AdvectionDiffusionLaxWendroff(Operator):
+    """Explicit finite difference scheme for 1D advection-diffusion
+    using Lax-Wendroff for advection, batch-compatible.
+    """
+    def __init__(self, velocity: float, diffusivity: float, length_of_domain: float, total_simulation_time: float, number_of_time_steps: int, number_of_snapshots: int):
+        self.velocity = velocity
+        self.diffusivity = diffusivity
+        self.length_of_domain = length_of_domain
+        self.total_simulation_time = total_simulation_time
+        self.number_of_time_steps = number_of_time_steps
+        self.number_of_snapshots = number_of_snapshots
+
+    def __call__(self, u: torch.Tensor) -> torch.Tensor:
+        # u: [batch_size, Nx]
+        batch_size, Nx = u.shape
+        L = self.length_of_domain
+        T = self.total_simulation_time
+        Nt = self.number_of_time_steps
+        N_snapshots = self.number_of_snapshots
+        dx = L / Nx
+        dt = T / Nt
+        freq = Nt // N_snapshots
+        v = self.velocity
+        D = self.diffusivity
+
+        # Calculate the Courant number for convenience
+        C = v * dt / dx
+
+        u_n = u.clone().cpu().numpy()  # work in numpy for easy rolling
+        u_history = [u_n.copy()]
+
+        for n in range(Nt - 1):
+            # Roll for neighbor values
+            u_left = np.roll(u_n, 1, axis=1)
+            u_right = np.roll(u_n, -1, axis=1)
+
+            # Lax-Wendroff Advection Term:
+            # -v * (dt / (2 * dx)) * (u_right - u_left)  (first-order central difference part)
+            # + 0.5 * v^2 * (dt^2 / dx^2) * (u_right - 2 * u_n + u_left) (second-order correction)
+            advection_lw = -C / 2 * (u_right - u_left) + 0.5 * C**2 * (u_right - 2 * u_n + u_left)
+
+            # Explicit Diffusion Term (same as before)
+            diffusion = D * (dt / dx**2) * (u_right - 2 * u_n + u_left)
+
+            # Update u_n
+            u_n = u_n + advection_lw + diffusion
+
+            # Store snapshots
+            if (n + 1) % freq == 0 and n > 0: # Check (n+1) because we want to save after the update
+                u_history.append(u_n.copy())
+        
+        # Ensure the last snapshot is always included if N_snapshots is such that freq doesn't align
+        # or if N_snapshots is very small
+        if len(u_history) < N_snapshots:
+             u_history.append(u_n.copy()) # Add the very last state
+        elif len(u_history) > N_snapshots: # If somehow more than N_snapshots are collected (shouldn't happen with correct freq calculation)
+             u_history = u_history[:N_snapshots]
+
+
+        u_hist_np = np.stack(u_history, axis=1)  # [batch_size, N_snapshots, Nx]
+        return torch.from_numpy(u_hist_np).to(u.device)
+    
+class AdvectionDiffusionImplicit(Operator):
+    """Implicit finite difference scheme for 1D advection-diffusion
+    using Crank-Nicolson with PERIODIC boundary conditions, batch-compatible.
+    Uses central differencing for advection and diffusion.
+    """
+    def __init__(self, velocity: float, diffusivity: float, length_of_domain: float, total_simulation_time: float, number_of_time_steps: int, number_of_snapshots: int):
+        self.velocity = velocity
+        self.diffusivity = diffusivity
+        self.length_of_domain = length_of_domain
+        self.total_simulation_time = total_simulation_time
+        self.number_of_time_steps = number_of_time_steps
+        self.number_of_snapshots = number_of_snapshots
+
+    def __call__(self, u: torch.Tensor) -> torch.Tensor:
+        # u: [batch_size, Nx]
+        batch_size, Nx = u.shape
+        L = self.length_of_domain
+        T = self.total_simulation_time
+        Nt = self.number_of_time_steps
+        N_snapshots = self.number_of_snapshots
+        dx = L / Nx # For periodic, we typically consider Nx points representing Nx intervals, dx = L/Nx
+        dt = T / Nt
+        freq = Nt // N_snapshots
+        v = self.velocity
+        D = self.diffusivity
+
+        # Coefficients for Crank-Nicolson
+        alpha = D * dt / (2 * dx**2) # Diffusion coefficient
+        beta = v * dt / (4 * dx)     # Advection coefficient
+
+        u_n = u.clone().cpu().numpy().astype(np.float64)
+        u_history = [u_n.copy()]
+
+        # Define the main diagonals for the tridiagonal matrix A
+        # The structure of the matrix for periodic BCs is:
+        # B C 0 ... 0 A
+        # A B C ... 0 0
+        # 0 A B ... 0 0
+        # ...
+        # 0 0 0 ... A B C
+        # C 0 0 ... 0 A B
+
+        # Main diagonal terms for the tridiagonal part (B_i)
+        main_diag_val = 1 + 2 * alpha
+        # Upper diagonal terms (C_i)
+        upper_diag_val = -alpha + beta
+        # Lower diagonal terms (A_i)
+        lower_diag_val = -alpha - beta
+
+        # Arrays for the three main diagonals of the almost-tridiagonal system
+        # (excluding the wrap-around terms for now)
+        main_diag = np.full(Nx, main_diag_val)
+        upper_diag = np.full(Nx, upper_diag_val)
+        lower_diag = np.full(Nx, lower_diag_val)
+
+        for n_step in range(Nt):
+            u_next = np.zeros_like(u_n)
+
+            for b in range(batch_size):
+                u_current_batch = u_n[b, :]
+
+                # Construct the right-hand side (RHS) vector for all Nx points
+                # (alpha + beta) u_{i-1}^n + (1 - 2*alpha) u_i^n + (alpha - beta) u_{i+1}^n
+                # Need to use periodic indexing for u_current_batch
+                u_left_n = np.roll(u_current_batch, 1)
+                u_right_n = np.roll(u_current_batch, -1)
+
+                rhs_vector = (alpha + beta) * u_left_n + \
+                             (1 - 2 * alpha) * u_current_batch + \
+                             (alpha - beta) * u_right_n
+
+                # --- Cyclic Tridiagonal Matrix Algorithm (TDMA) ---
+                # This solves Ax = b where A is a cyclic tridiagonal matrix
+                # The general idea is to modify the system into a standard tridiagonal system,
+                # solve it twice, and combine the solutions.
+
+                # 1. Solve A'x' = b (standard tridiagonal system)
+                # A' is A without the (0, Nx-1) and (Nx-1, 0) elements.
+                # This means the matrix for solve_banded will be Nx-1 x Nx-1 (ignoring last row/col)
+                # Or, we can modify the first and last rows after construction.
+
+                # Construct the banded matrix for scipy.linalg.solve_banded
+                # This function expects a matrix with 3 rows:
+                # row 0: upper diagonal (c_i) with a 0 at the start (Nx-1 elements)
+                # row 1: main diagonal (b_i) (Nx elements)
+                # row 2: lower diagonal (a_i) with a 0 at the end (Nx-1 elements)
+
+                # For the standard TDMA part (ignoring wrap-around terms for a moment)
+                ab = np.zeros((3, Nx))
+                ab[0, 1:] = upper_diag[:-1]  # Upper diagonal (c_i)
+                ab[1, :] = main_diag         # Main diagonal (b_i)
+                ab[2, :-1] = lower_diag[1:]  # Lower diagonal (a_i)
+
+                # Solve the regular tridiagonal system (ignoring last row for now)
+                # We solve for u_prime using rhs_vector and then for y_prime using special vectors
+                # This is simplified in the 'solve_banded' context by handling the boundary terms.
+
+                # The cyclic TDMA involves solving two systems with slightly modified RHS vectors.
+                # Let's call the full cyclic matrix A_c.
+                # A_c x = b.  We can write A_c = T + uv^T where T is tridiagonal and uv^T is the perturbation.
+                # (T is the matrix we'd have for fixed BCs where x_0 and x_{N-1} are not linked.)
+
+                # Create two RHS vectors for the two sub-problems in cyclic TDMA:
+                # d_vec (original RHS) and e_vec (a vector with 1 at start/end, 0 elsewhere)
+                d_vec = rhs_vector.copy()
+                e_vec = np.zeros(Nx)
+                e_vec[0] = (-alpha - beta) # The coefficient A_N-1,0 in the original matrix
+                e_vec[Nx-1] = (-alpha + beta) # The coefficient C_0,N-1 in the original matrix
+
+                # Temporarily modify the main diagonal for the 'solve_banded' call
+                # to represent fixed BCs for the sub-problems.
+                # We use the full Nx system and then correct.
+
+                # Step 1: Solve Ty_d = d_vec (original RHS)
+                # Here, T is the matrix with fixed BCs, so we solve for all Nx points assuming fixed.
+                # Adjusting ab based on the full matrix with 0s for wrap around for solve_banded
+                ab_fixed_bc = np.zeros((3, Nx))
+                ab_fixed_bc[0, 1:] = upper_diag[:-1] # c
+                ab_fixed_bc[1, :] = main_diag         # b
+                ab_fixed_bc[2, :-1] = lower_diag[1:] # a
+
+                # Fix first and last rows to avoid linking them (treat as fixed BCs temporarily)
+                # This usually means setting a_1 = 0 and c_{N-2} = 0, and handling the RHS.
+                # For scipy.linalg.solve_banded, we just provide the diagonals as if they are
+                # for a standard tridiagonal matrix of size Nx.
+
+                # The standard way to implement cyclic TDMA (simplified here for Python)
+                # is to solve Ax=b for the first N-1 equations, then use the last equation.
+                # Or, solve twice: Ax=b and Ax=e where e has non-zero only at ends.
+
+                # A more direct approach with solve_banded for cyclic:
+                # 1. Define the almost-tridiagonal matrix without the corner elements.
+                # 2. Add the corner elements (a[0,N-1] and a[N-1,0]) to a rank-2 matrix.
+                # 3. Use Sherman-Morrison to invert (A_tridiagonal + uvT).
+                # This is equivalent to solving two tridiagonal systems.
+
+                # Let's implement using the two-solve approach
+                # Solve the 'fixed boundary' system T x_hat = b_hat
+                # where T is the tridiagonal matrix without the periodic wrap-around terms.
+                # And solve T y_hat = e_hat where e_hat has 1 at ends.
+
+                # Create the standard tridiagonal matrix diagonals (Nx-1 internal points)
+                # The first row (index 0) and last row (index Nx-1) are special.
+                # We solve for 0..Nx-1 by treating it as a slightly modified system.
+                # For `solve_banded`, the `ab` matrix format is key.
+
+                # The `solve_banded` function needs `m_l` lower diagonals and `m_u` upper diagonals.
+                # For a tridiagonal system, `m_l=1`, `m_u=1`.
+                # The `ab` array has dimensions (m_l + m_u + 1, N).
+
+                # Build the diagonals for the standard tridiagonal system of size Nx:
+                a_coeffs = np.full(Nx - 1, lower_diag_val)
+                b_coeffs = np.full(Nx, main_diag_val)
+                c_coeffs = np.full(Nx - 1, upper_diag_val)
+
+                # Setup 'ab' for `solve_banded`:
+                # row 0: upper diagonal (c_coeffs) shifted by 1
+                # row 1: main diagonal (b_coeffs)
+                # row 2: lower diagonal (a_coeffs) shifted by 0
+                ab_standard = np.zeros((3, Nx))
+                ab_standard[0, 1:] = c_coeffs
+                ab_standard[1, :] = b_coeffs
+                ab_standard[2, :-1] = a_coeffs
+
+                # Solve the first system: T * u_tilde = rhs_vector
+                u_tilde = solve_banded((1, 1), ab_standard, rhs_vector)
+
+                # Solve the second system: T * y_tilde = e_vector
+                # e_vector has specific values at the ends to represent the periodic wrap-around
+                e_vector = np.zeros(Nx)
+                e_vector[0] = main_diag_val * lower_diag_val + upper_diag_val * main_diag_val # Simplified for illustration; typically 1 or specific values
+                e_vector[Nx-1] = 1.0 # Or more specific values depending on formulation
+
+                # More accurate e_vector for cyclic TDMA
+                e_vector = np.zeros(Nx)
+                e_vector[0] = lower_diag_val # The a_0 coefficient from the cyclic matrix
+                e_vector[Nx-1] = upper_diag_val # The c_{N-1} coefficient from the cyclic matrix
+
+                y_tilde = solve_banded((1, 1), ab_standard, e_vector)
+
+                # Correction factor for periodic BCs
+                # This formula comes from applying Sherman-Morrison to T + uv^T
+                gamma = (lower_diag_val * u_tilde[Nx-1] + upper_diag_val * u_tilde[0]) / \
+                        (1 + lower_diag_val * y_tilde[Nx-1] + upper_diag_val * y_tilde[0])
+
+                u_next[b, :] = u_tilde - gamma * y_tilde
+
+            u_n = u_next # Update for the next time step
+
+            # Store snapshots
+            if (n_step + 1) % freq == 0:
+                u_history.append(u_n.copy())
+
+        # Ensure the last snapshot is always included if N_snapshots is such that freq doesn't align
+        if len(u_history) < N_snapshots:
+             u_history.append(u_n.copy())
+        elif len(u_history) > N_snapshots:
+             u_history = u_history[:N_snapshots]
+
+        u_hist_np = np.stack(u_history, axis=1)  # [batch_size, N_snapshots, Nx]
+        return torch.from_numpy(u_hist_np).to(u.device)
+
+def calculate_numbers(velocities, diffusivities, set_name, dt=1/1000, dx=1/1024):
+    print(f"--- {set_name} Set Calculations ---")
+    results = []
+    for v_idx, v in enumerate(velocities):
+        for d_idx, D in enumerate(diffusivities):
+            C = (abs(v) * dt) / dx
+            Fo = (D * dt) / (dx**2)
+            
+            # Pe_Delta calculation: Handle D=0 case gracefully
+            if D == 0:
+                Pe_Delta = np.inf # Pure advection
+            else:
+                Pe_Delta = (abs(v) * dx) / D
+            
+            result = {
+                "v": v,
+                "D": D,
+                "Courant (C)": f"{C:.4f}",
+                "Diffusion Number (Fo)": f"{Fo:.4f}",
+                "Grid Peclet (Pe_Delta)": f"{Pe_Delta:.4f}" if np.isfinite(Pe_Delta) else "Infinity (pure advection)"
+            }
+            results.append(result)
+            print(f"v={v:<6.3f}, D={D:<7.4f}: C={C:.4f}, Fo={Fo:.4f}, Pe_Delta={Pe_Delta:.4f}" if np.isfinite(Pe_Delta) else f"v={v:<6.3f}, D={D:<7.4f}: C={C:.4f}, Fo={Fo:.4f}, Pe_Delta=Infinity (pure advection)")
+    print("\n")
+    return results
 
 
 if __name__ == "__main__":
