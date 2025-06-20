@@ -68,7 +68,7 @@ class DISCOLitModule(L.LightningModule):
         optimizer = self.optimizers()
         scheduler = self.lr_schedulers()
         optimizer.zero_grad()
-        y_pred, metadata = self.model(input, state_labels, n_future_steps=target.shape[1])
+        y_pred, metadata = self.model(input, state_labels, y=target)
         loss = self.loss_fn(y_pred, target)
         self.manual_backward(loss)
         optimizer.step()
@@ -79,7 +79,8 @@ class DISCOLitModule(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         input, target = batch
         state_labels = torch.tensor([0], device=input.device)
-        y_pred, metadata = self.model(input, state_labels, n_future_steps=target.shape[1])
+        y_pred, metadata = self.model(input, state_labels, y=target)
+
         loss = self.loss_fn(y_pred, target)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
