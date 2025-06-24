@@ -10,6 +10,47 @@ import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
 from utils import RelativeL2
+from advection_diffusion import Fractaloid, AdvectionDiffusionExplicit
+
+def advection_diffusion_analytical(u0, L=16.0, v=0.1, D=0.5, nt=100, T=10.0):
+    """
+    Compute the analytical solution of the 1D advection-diffusion equation
+    with periodic boundary conditions using the Fourier spectral method.
+
+    Parameters:
+        u0 (ndarray): Initial condition, array of shape (nx,)
+        L (float): Domain length
+        v (float): Advection speed
+        D (float): Diffusion coefficient
+        nt (int): Number of time steps
+        T (float): Final time
+
+    Returns:
+        u_xt (ndarray): Solution array of shape (nt, nx)
+        x (ndarray): Spatial grid of shape (nx,)
+        t (ndarray): Time grid of shape (nt,)
+    """
+    nx = len(u0)  # infer spatial resolution from input
+    x = np.linspace(0, L, nx, endpoint=False)
+    t = np.linspace(0, T, nt)
+
+    # Fourier wavenumbers
+    k = np.fft.fftfreq(nx, d=L / nx) * 2 * np.pi
+    k = 1j * k  # complex wavenumber for exponential form
+
+    # FFT of initial condition
+    u0_hat = np.fft.fft(u0)
+
+    # Allocate solution array
+    u_xt = np.zeros((nt, nx))
+
+    # Time evolution in spectral space
+    for i, ti in enumerate(t):
+        decay = np.exp(D * (k**2) * ti) * np.exp(-k * v * ti)
+        u_hat_t = u0_hat * decay
+        u_xt[i] = np.fft.ifft(u_hat_t).real  # keep only real part
+
+    return u_xt, x, t
 
 class TemporalDataset(torch.utils.data.Dataset):
     def __init__(self, u, sub_x, sub_t, input_frames=16, output_frames=16):
@@ -26,15 +67,109 @@ class TemporalDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         images = torch.from_numpy(self.u[idx]).unsqueeze(-2).float() # add channel dimension
         images = images[::self.sub_t, ..., ::self.sub_x]
-        max_start_index = images.shape[0] - self.slice_size
+
+        # we sample the input frames from a uniform distribution between 2 and self.input_frames
+        input_frames = np.random.randint(2, self.input_frames)
+        max_start_index = images.shape[0] - input_frames
         if max_start_index < 0:
-            raise ValueError("Slice size is larger than the sequence length.")
-        start_index = np.random.randint(0, max_start_index + 1)
-        images = images[start_index:start_index + self.slice_size]
-        input = images[:self.input_frames]
-        target = images[self.input_frames:]
+            raise ValueError("Input frames size is larger than the sequence length.")
+
+        start_index_enc = np.random.randint(0, max_start_index + 1)
+        input = images[start_index_enc:start_index_enc + input_frames].clone()
+
+        max_start_index = images.shape[0] - self.output_frames
+        if max_start_index < 0:
+            raise ValueError("Output frames size is larger than the sequence length.")
+
+        start_index_dec = np.random.randint(0, max_start_index + 1)
+        target = images[start_index_dec:start_index_dec + self.output_frames].clone()
 
         return input, target
+
+
+class TemporalDatasetFly(torch.utils.data.Dataset):
+    def __init__(self, n_samples, sub_x, sub_t, input_frames=16, output_frames=16,
+                 L=16.0, nx=256, nt=100, T=10.0,
+                 v_range=(0.01, 1.0), D_range=(0.01, 1.0),
+                 fractal_degree=8, fractal_power=2, seed=None):
+        self.n_samples = n_samples
+        self.sub_x = sub_x
+        self.sub_t = sub_t
+        self.input_frames = input_frames
+        self.tmp_input_frames = input_frames
+        self.output_frames = output_frames
+        self.slice_size = input_frames + output_frames
+        self.L = L
+        self.nx = nx
+        self.nt = nt
+        self.T = T
+        self.v_range = v_range
+        self.D_range = D_range
+        self.fractal_degree = fractal_degree
+        self.fractal_power = fractal_power
+        self.seed = seed
+        self.rng = np.random.default_rng(seed)
+
+    def __len__(self):
+        return self.n_samples
+    
+    def set_input_frames(self, input_frames):
+        self.tmp_input_frames = input_frames
+
+    def __getitem__(self, idx):
+        # Sample advection speed and viscosity
+        if isinstance(self.v_range, (tuple, list)):
+            v = self.rng.uniform(*self.v_range)
+        else:
+            v = float(self.v_range)
+        if isinstance(self.D_range, (tuple, list)):
+            D = self.rng.uniform(*self.D_range)
+        else:
+            D = float(self.D_range)
+        # Generate fractaloid initial condition
+        fractaloid = Fractaloid(
+            degree=self.fractal_degree,
+            power=self.fractal_power,
+            size=self.nx,
+            patch_size=self.nx
+        )
+        u0 = fractaloid.generate(batch_size=1, seed=None).squeeze(0).numpy()
+        # Normalize initial condition
+        u0 = (u0 - u0.mean()) / (u0.std() + 1e-8)
+        # Generate trajectory using analytical solution
+        u_xt, x, t = advection_diffusion_analytical(
+            u0, L=self.L, v=v, D=D, nt=self.nt, T=self.T
+        )
+        # Subsample
+        u_xt = u_xt[::self.sub_t, ::self.sub_x]
+        # Prepare input/target
+        #input_frames = np.random.randint(2, self.input_frames)
+        input_frames = self.tmp_input_frames
+        max_start_index_input = u_xt.shape[0] - input_frames
+        if max_start_index_input < 0:
+            raise ValueError("Input frames size is larger than the sequence length.")
+
+        start_index_enc = np.random.randint(0, max_start_index_input + 1)
+        input = u_xt[start_index_enc:start_index_enc + input_frames].copy()
+
+        max_start_index_target = u_xt.shape[0] - self.output_frames
+        if max_start_index_target < 0:
+            raise ValueError("Output frames size is larger than the sequence length.")
+
+        start_index_dec = np.random.randint(0, max_start_index_target + 1)
+        target = u_xt[start_index_dec:start_index_dec + self.output_frames].copy()
+        # Return dict with all info
+        return {
+            'input': torch.from_numpy(input).unsqueeze(-2).float(),
+            'target': torch.from_numpy(target).unsqueeze(-2).float(),
+            'v': v,
+            'D': D,
+            'u0': torch.from_numpy(u0).float(),
+            'L': self.L,
+            'T': self.T,
+            'x': x,
+            't': t
+        }
 
 
 def load_data(data_cfg):
@@ -46,6 +181,21 @@ def load_data(data_cfg):
     val_ds = TemporalDataset(val['trajectories'], data_cfg.sub_x, data_cfg.sub_t, data_cfg.n_input_frames, data_cfg.n_output_frames)
     test_ds = TemporalDataset(test['trajectories'], data_cfg.sub_x, data_cfg.sub_t, data_cfg.n_input_frames, data_cfg.n_output_frames)
     return train_ds, val_ds, test_ds
+
+
+class RandomizeInputFramesBatchCallback(L.Callback):
+    def __init__(self, input_frames):
+        super().__init__()
+        self.input_frames = input_frames
+
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
+        train_loader = trainer.train_dataloader
+        if isinstance(train_loader, list):
+            train_ds = train_loader[0].dataset
+        else:
+            train_ds = train_loader.dataset
+        new_input_frames = np.random.randint(2, self.input_frames + 1)
+        train_ds.set_input_frames(new_input_frames)
 
 
 class DISCOLitModule(L.LightningModule):
@@ -63,13 +213,16 @@ class DISCOLitModule(L.LightningModule):
         return y_pred
 
     def training_step(self, batch, batch_idx):
-        input, target = batch
+        input = batch['input']
+        target = batch['target']
+
+        #input, target = batch
         state_labels = torch.tensor([0], device=input.device)
         optimizer = self.optimizers()
         scheduler = self.lr_schedulers()
         optimizer.zero_grad()
         y_pred, metadata = self.model(input, state_labels, y=target)
-        loss = self.loss_fn(y_pred, target)
+        loss = self.loss_fn(y_pred, target[:,1:])
         self.manual_backward(loss)
         optimizer.step()
         scheduler.step()
@@ -77,11 +230,12 @@ class DISCOLitModule(L.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        input, target = batch
+        input = batch['input']
+        target = batch['target']
         state_labels = torch.tensor([0], device=input.device)
         y_pred, metadata = self.model(input, state_labels, y=target)
 
-        loss = self.loss_fn(y_pred, target)
+        loss = self.loss_fn(y_pred, target[:,1:])
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
@@ -89,6 +243,9 @@ class DISCOLitModule(L.LightningModule):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.max_steps)
         return {"optimizer": optimizer, "lr_scheduler": scheduler}
+
+    def on_train_epoch_start(self):
+        pass  # No longer needed, handled by callback
 
 
 @hydra.main(config_path="configs", config_name="config")
@@ -101,9 +258,27 @@ def main(cfg: DictConfig):
         name=run_name
     )
 
-    train_ds, val_ds, test_ds = load_data(cfg.data)
-    train_loader = DataLoader(train_ds, batch_size=cfg.training.batch_size, shuffle=True, num_workers=4, prefetch_factor=4)
-    val_loader = DataLoader(val_ds, batch_size=cfg.training.batch_size, num_workers=4, prefetch_factor=4)
+    #train_ds, val_ds, test_ds = load_data(cfg.data)
+    train_ds = TemporalDatasetFly(
+        n_samples=10000,
+        sub_x=cfg.data.sub_x,
+        sub_t=cfg.data.sub_t,
+        input_frames=cfg.data.n_input_frames,
+        output_frames=cfg.data.n_output_frames,
+        L=16.0,
+        nx=256,
+        nt=100,
+        T=10.0,
+        fractal_power=2.0,
+        fractal_degree=256, # nx
+        v_range=(0.01, 1.0),
+        D_range=(0.001, 1.0),
+    )
+    val_ds = train_ds
+    randomize_callback = RandomizeInputFramesBatchCallback(input_frames=cfg.data.n_input_frames)
+
+    train_loader = DataLoader(train_ds, batch_size=cfg.training.batch_size, shuffle=True, num_workers=4, prefetch_factor=4, pin_memory=True)
+    val_loader = DataLoader(val_ds, batch_size=cfg.training.batch_size, num_workers=4, prefetch_factor=4, pin_memory=True)
 
     model = DISCOLitModule(cfg.model, cfg.training)
 
@@ -123,7 +298,7 @@ def main(cfg: DictConfig):
         devices=1 if torch.cuda.is_available() else None,
         log_every_n_steps=100,
         check_val_every_n_epoch=5,
-        callbacks=[checkpoint_callback, lr_monitor],
+        callbacks=[checkpoint_callback, lr_monitor, randomize_callback],
     )
     trainer.fit(model, train_loader, val_loader)
     trainer.save_checkpoint("model_final.ckpt")

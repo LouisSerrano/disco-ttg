@@ -96,10 +96,12 @@ if __name__ == "__main__":
         setting = cfg.test.setting
         n_input = cfg.test.n_input
         n_pred = cfg.test.n_pred
-        plot_dir = cfg.test.plot_dir
-        os.makedirs(plot_dir, exist_ok=True)
-        os.makedirs(f"{plot_dir}/{dataset_name}/{setting}", exist_ok=True)
-        os.makedirs(f"results/{dataset_name}/{setting}", exist_ok=True)
+        results_dir = cfg.test.results_dir
+        os.makedirs(results_dir, exist_ok=True)
+        os.makedirs(f"{results_dir}/{dataset_name}/plots/{setting}", exist_ok=True)
+        os.makedirs(f"{results_dir}/{dataset_name}/predictions/{setting}", exist_ok=True)
+        os.makedirs(f"{results_dir}/{dataset_name}/theta/{setting}", exist_ok=True)
+        os.makedirs(f"{results_dir}/{dataset_name}/errors/{setting}", exist_ok=True)
         relative_l2_error = RelativeL2()
 
         # --- MAIN TEST LOOP ---
@@ -133,7 +135,7 @@ if __name__ == "__main__":
                     for i in range(min(3, x.shape[0])):  # Save up to 3 samples per batch
                         pred_np = pred[i].detach().cpu().numpy()
                         target_np = target[i].detach().cpu().numpy()
-                        out_dir = f"results/{dataset_name}/predictions/{setting}/{split}"
+                        out_dir = f"{results_dir}/{dataset_name}/predictions/{setting}/{split}"
                         os.makedirs(out_dir, exist_ok=True)
                         np.savez_compressed(f"{out_dir}/pred_gt_batch{batch_idx}_sample{i}.npz", pred=pred_np, gt=target_np)
                         plot_prediction_vs_ground_truth(pred_np, target_np, idx=i, out_dir=out_dir, split=split, sample_name=f"batch{batch_idx}")
@@ -143,20 +145,22 @@ if __name__ == "__main__":
             all_theta = torch.cat(all_theta, dim=0)
 
             # Save theta for this split
-            theta_save_path = f"results/{dataset_name}/{setting}/{split}_theta.npy"
-            os.makedirs("results", exist_ok=True)
+            theta_save_path = f"{results_dir}/{dataset_name}/theta/{setting}/{split}_theta.npy"
             np.save(theta_save_path, all_theta.cpu().numpy())
 
             rollout_dic[split] = {
                 "rollout_error": rollout_error/n,
             }
+            
+            torch.save(rollout_dic, f"{results_dir}/{dataset_name}/errors/{setting}/rollout.pt")
+
             theta_dic[split] = {
                 "theta": all_theta,
                 "labels": all_labels
             }
 
         print(f"setting: {setting}", rollout_dic)
-        plot_theta_latent(theta_dic, out_path=f"{plot_dir}/{dataset_name}/{setting}/theta_latent.pdf")
+        plot_theta_latent(theta_dic, out_path=f"{results_dir}/{dataset_name}/theta/theta_latent.pdf")
 
         print("Done.")
 
