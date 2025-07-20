@@ -1,0 +1,20 @@
+# Directories to ignore
+outputs/
+results/
+datasets/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Hydra outputs
+.hydra/
+
+# SLURM output files
+slurm-*.out

@@ -15,4 +15,4 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate 
 
-python3 test.py hydra.run.dir=. test.setting="dense" test.ckpt_time=2025-06-18/22-51-43 #test.ckpt_path=outputs/2025-06-15/23-46-48/model_final.ckpt
+python3 train_expert.py model.max_steps=10 model.use_adjoint=False training.max_steps=100000 training.sparsity_alpha=1 training.lr=5e-4 training.batch_size=64 data.n_output_frames=2 

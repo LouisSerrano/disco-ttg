@@ -367,9 +367,12 @@ class Fractaloid(FourierBased):
         self.degree = degree
         self.power = power  # the larger the smoother the signal
 
-    def power_spectrum(self, degree: int) -> torch.Tensor:
+    def power_spectrum(self, degree: int, batch_size: int | None = None) -> torch.Tensor:
         """ Power-spectrum of the fractaloid. """
-        return torch.arange(1, degree+1) ** (-self.power)
+        if batch_size is None:
+            return torch.arange(1, degree+1) ** (-self.power)
+        else:
+            return torch.arange(1, degree+1) ** (-self.power)
 
 
 class FourierSmooth(FourierBased):

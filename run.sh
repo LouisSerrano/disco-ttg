@@ -15,4 +15,4 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate 
 
-python3 train.py model.theta_dim=2 model.max_steps=1 model.use_adjoint=False data.setting=dense
+python3 train.py model.max_steps=1 model.use_adjoint=False model.decoder_use_bias=True training.max_steps=100000 training.in_context=True
