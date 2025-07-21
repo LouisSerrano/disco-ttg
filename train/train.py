@@ -4,6 +4,7 @@ from omegaconf import DictConfig, OmegaConf
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset, IterableDataset
+from torch.optim.lr_scheduler import _LRScheduler
 import wandb
 from models import DISCOHouse
 import lightning as L
@@ -36,33 +37,26 @@ def add_weight_decay(params, weight_decay=1e-5, skip_list=()):
     ]
 
 
-class CosineWithWarmupScheduler:
+class CosineWithWarmupScheduler(_LRScheduler):
     """Cosine annealing with linear warmup scheduler"""
-    def __init__(self, optimizer, warmup_steps, total_steps, min_lr_ratio=0.0):
-        self.optimizer = optimizer
+    def __init__(self, optimizer, warmup_steps, total_steps, min_lr_ratio=0.0, last_epoch=-1):
         self.warmup_steps = warmup_steps
         self.total_steps = total_steps
         self.min_lr_ratio = min_lr_ratio
-        self.base_lrs = [group['lr'] for group in optimizer.param_groups]
-        self.current_step = 0
+        super().__init__(optimizer, last_epoch)
     
-    def step(self):
-        self.current_step += 1
-        
-        if self.current_step <= self.warmup_steps:
+    def get_lr(self):
+        """Calculate learning rate for current epoch"""
+        if self.last_epoch <= self.warmup_steps:
             # Linear warmup
-            lr_scale = self.current_step / self.warmup_steps
+            lr_scale = self.last_epoch / self.warmup_steps if self.warmup_steps > 0 else 1.0
         else:
             # Cosine annealing
-            progress = (self.current_step - self.warmup_steps) / (self.total_steps - self.warmup_steps)
+            progress = (self.last_epoch - self.warmup_steps) / (self.total_steps - self.warmup_steps)
             progress = min(progress, 1.0)  # Clamp to [0, 1]
             lr_scale = self.min_lr_ratio + 0.5 * (1 - self.min_lr_ratio) * (1 + math.cos(math.pi * progress))
         
-        for param_group, base_lr in zip(self.optimizer.param_groups, self.base_lrs):
-            param_group['lr'] = base_lr * lr_scale
-    
-    def get_last_lr(self):
-        return [group['lr'] for group in self.optimizer.param_groups]
+        return [base_lr * lr_scale for base_lr in self.base_lrs]
 
 
 def compute_gradient_stats(model):
