@@ -11,6 +11,8 @@ from itertools import product
 import os
 import random
 from torch.optim.lr_scheduler import CosineAnnealingLR
+import hydra
+from omegaconf import DictConfig
 
 class TemporalDatasetFixedCI(torch.utils.data.Dataset):
     def __init__(self, n_batches, batch_size, sub_x, sub_t, split="train", input_frames=16, output_frames=2,
@@ -291,11 +293,13 @@ def get_data(
     return all_theta_latent, all_theta, all_input, all_target, all_errors
 
 
-def run_composition_tests(model, device, n_points=20, output_csv="composition_test_results.csv"):
+def run_composition_tests(model, device, cfg, n_points=20, output_csv="composition_test_results.csv"):
     results = []
-    # Define parameter ranges
-    advection_range = np.exp(np.linspace(np.log(0.01), np.log(1.0), n_points)) #np.logspace(0.01, 1.0, n_points)
-    diffusion_range = np.exp(np.linspace(np.log(0.001), np.log(1.0), n_points)) #np.logspace(0.001, 1.0, n_points)
+    # Define parameter ranges from config
+    v_min, v_max = cfg.data.v_range
+    D_min, D_max = cfg.data.D_range
+    advection_range = np.exp(np.linspace(np.log(v_min), np.log(v_max), n_points))
+    diffusion_range = np.exp(np.linspace(np.log(D_min), np.log(D_max), n_points))
 
     # 1. Advection + Advection (viscosity=0)
     for adv1, adv2 in product(advection_range, repeat=2):
@@ -366,18 +370,24 @@ def run_composition_tests(model, device, n_points=20, output_csv="composition_te
 
 
 
-if __name__ == "__main__":
+@hydra.main(config_path="../configs", config_name="config")
+def main(cfg: DictConfig):
     # load model
     device="cuda" if torch.cuda.is_available() else "cpu"
-    ckpt_time="2025-07-01/00-21-40" #"2025-06-24/15-27-28" 
-    results_dir = f"/mnt/home/lserrano/disco-ball/results/{ckpt_time}"
+    dataset_name = cfg.test.dataset_name
+    ckpt_time = cfg.test.ckpt_time
+    run_name = cfg.test.get('run_name', f"{dataset_name}_{cfg.test.setting}")
+    results_dir = f"{cfg.test.results_dir.rstrip('/')}/{dataset_name}/{run_name}"
     os.makedirs(results_dir, exist_ok=True)
-    ckpt_path = f"/mnt/home/lserrano/disco-ball/outputs/{ckpt_time}/model_final.ckpt"
+    ckpt_path = cfg.test.ckpt_path
     print(f"Loading model from {ckpt_path}...")
     model = DISCOLitModule.load_from_checkpoint(ckpt_path, map_location=device)
     model = model.model.to(device)
     model.eval()
 
     # Run the composition grid tests and save to CSV
-    n_points = 10
-    run_composition_tests(model, device, n_points=n_points, output_csv=f"{results_dir}/single_finetune_test_results_{n_points}.csv")
+    n_points = cfg.test.get('n_points', 10)
+    run_composition_tests(model, device, cfg, n_points=n_points, output_csv=f"{results_dir}/single_finetune_test_results_{n_points}.csv")
+
+if __name__ == "__main__":
+    main()

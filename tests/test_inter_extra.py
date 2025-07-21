@@ -9,6 +9,8 @@ from models import DISCOHouse
 import csv
 from itertools import product
 import os
+import hydra
+from omegaconf import DictConfig
 
 class TemporalDatasetFixedCI(torch.utils.data.Dataset):
     def __init__(self, n_batches, batch_size, sub_x, sub_t, split="train", input_frames=16, output_frames=2,
@@ -242,28 +244,40 @@ def run_tests(model, advection_range, diffusion_range, device, n_points=20, outp
     print(f"Results saved to {output_csv}")
 
 
-if __name__ == "__main__":
+@hydra.main(config_path="../configs", config_name="config")
+def main(cfg: DictConfig):
     # load model
     device="cuda" if torch.cuda.is_available() else "cpu"
-    ckpt_time="2025-07-01/00-21-40" #"2025-06-24/15-27-28" 
-    results_dir = f"/mnt/home/lserrano/disco-ball/results/{ckpt_time}"
+    dataset_name = cfg.test.dataset_name
+    ckpt_time = cfg.test.ckpt_time
+    run_name = cfg.test.get('run_name', f"{dataset_name}_{cfg.test.setting}")
+    results_dir = f"{cfg.test.results_dir.rstrip('/')}/{dataset_name}/{run_name}"
     os.makedirs(results_dir, exist_ok=True)
-    ckpt_path = f"/mnt/home/lserrano/disco-ball/outputs/{ckpt_time}/model_final.ckpt"
+    ckpt_path = cfg.test.ckpt_path
     print(f"Loading model from {ckpt_path}...")
     model = DISCOLitModule.load_from_checkpoint(ckpt_path, map_location=device)
     model = model.model.to(device)
     model.eval()
 
     # Run the composition grid tests and save to CSV
-    n_points = 10
-    advection_range_inter = np.exp(np.linspace(np.log(0.01), np.log(1.0), n_points)) #np.logspace(0.01, 1.0, n_points)
-    diffusion_range_inter = np.exp(np.linspace(np.log(0.001), np.log(1.0), n_points)) #np.logspace(0.001, 1.0, n_points)
+    n_points = cfg.test.get('n_points', 10)
+    
+    # Interpolation range (within training bounds)
+    v_min, v_max = cfg.data.v_range
+    D_min, D_max = cfg.data.D_range
+    advection_range_inter = np.exp(np.linspace(np.log(v_min), np.log(v_max), n_points))
+    diffusion_range_inter = np.exp(np.linspace(np.log(D_min), np.log(D_max), n_points))
     run_tests(model, advection_range_inter, diffusion_range_inter, device, n_points=n_points, output_csv=f"{results_dir}/inter_test_results_{n_points}.csv")
 
-    advection_range_extra_up = np.exp(np.linspace(np.log(1.0), np.log(5.0), n_points)) #np.logspace(0.01, 1.0, n_points)
-    diffusion_range_extra_up = np.exp(np.linspace(np.log(1.0), np.log(5.0), n_points)) #np.logspace(0.001, 1.0, n_points)
+    # Extrapolation ranges (beyond training bounds)
+    extra_factor = cfg.test.get('extrapolation_factor', 5.0)
+    advection_range_extra_up = np.exp(np.linspace(np.log(v_max), np.log(v_max * extra_factor), n_points))
+    diffusion_range_extra_up = np.exp(np.linspace(np.log(D_max), np.log(D_max * extra_factor), n_points))
     run_tests(model, advection_range_extra_up, diffusion_range_extra_up, device, n_points=n_points, output_csv=f"{results_dir}/extra_up_test_results_{n_points}.csv")
 
-    advection_range_extra_down = np.exp(np.linspace(np.log(0.001), np.log(0.01), n_points)) #np.logspace(0.01, 1.0, n_points)
-    diffusion_range_extra_down = np.exp(np.linspace(np.log(0.0001), np.log(0.001), n_points)) #np.logspace(0.001, 1.0, n_points)
+    advection_range_extra_down = np.exp(np.linspace(np.log(v_min / extra_factor), np.log(v_min), n_points))
+    diffusion_range_extra_down = np.exp(np.linspace(np.log(D_min / extra_factor), np.log(D_min), n_points))
     run_tests(model, advection_range_extra_down, diffusion_range_extra_down, device, n_points=n_points, output_csv=f"{results_dir}/extra_down_test_results_{n_points}.csv")
+
+if __name__ == "__main__":
+    main()

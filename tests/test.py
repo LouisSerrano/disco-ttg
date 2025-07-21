@@ -97,11 +97,12 @@ if __name__ == "__main__":
         n_input = cfg.test.n_input
         n_pred = cfg.test.n_pred
         results_dir = cfg.test.results_dir
+        run_name = cfg.test.get('run_name', f"{dataset_name}_{setting}")
         os.makedirs(results_dir, exist_ok=True)
-        os.makedirs(f"{results_dir}/{dataset_name}/plots/{setting}", exist_ok=True)
-        os.makedirs(f"{results_dir}/{dataset_name}/predictions/{setting}", exist_ok=True)
-        os.makedirs(f"{results_dir}/{dataset_name}/theta/{setting}", exist_ok=True)
-        os.makedirs(f"{results_dir}/{dataset_name}/errors/{setting}", exist_ok=True)
+        os.makedirs(f"{results_dir}/{dataset_name}/{run_name}/plots/{setting}", exist_ok=True)
+        os.makedirs(f"{results_dir}/{dataset_name}/{run_name}/predictions/{setting}", exist_ok=True)
+        os.makedirs(f"{results_dir}/{dataset_name}/{run_name}/theta/{setting}", exist_ok=True)
+        os.makedirs(f"{results_dir}/{dataset_name}/{run_name}/errors/{setting}", exist_ok=True)
         relative_l2_error = RelativeL2()
 
         # --- MAIN TEST LOOP ---
@@ -114,8 +115,12 @@ if __name__ == "__main__":
             all_labels = []
             rollout_error = 0
             n = 0
-            data = load_split(data_dir, split, setting, n_output_frames=n_pred)
-            data_loader = DataLoader(data, batch_size=64, shuffle=False, num_workers=4, prefetch_factor=4)
+            data = load_split(data_dir, split, setting, 
+                            sub_x=cfg.test.get('sub_x', 1), 
+                            sub_t=cfg.test.get('sub_t', 1), 
+                            n_input_frames=cfg.test.get('n_input_frames', n_input), 
+                            n_output_frames=n_pred)
+            data_loader = DataLoader(data, batch_size=cfg.test.get('batch_size', 64), shuffle=False, num_workers=4, prefetch_factor=4)
             # --- Select random batch indices for saving predictions ---
             num_batches = len(data_loader)
             num_samples_to_save = 3
@@ -135,7 +140,7 @@ if __name__ == "__main__":
                     for i in range(min(3, x.shape[0])):  # Save up to 3 samples per batch
                         pred_np = pred[i].detach().cpu().numpy()
                         target_np = target[i].detach().cpu().numpy()
-                        out_dir = f"{results_dir}/{dataset_name}/predictions/{setting}/{split}"
+                        out_dir = f"{results_dir}/{dataset_name}/{run_name}/predictions/{setting}/{split}"
                         os.makedirs(out_dir, exist_ok=True)
                         np.savez_compressed(f"{out_dir}/pred_gt_batch{batch_idx}_sample{i}.npz", pred=pred_np, gt=target_np)
                         plot_prediction_vs_ground_truth(pred_np, target_np, idx=i, out_dir=out_dir, split=split, sample_name=f"batch{batch_idx}")
@@ -145,14 +150,14 @@ if __name__ == "__main__":
             all_theta = torch.cat(all_theta, dim=0)
 
             # Save theta for this split
-            theta_save_path = f"{results_dir}/{dataset_name}/theta/{setting}/{split}_theta.npy"
+            theta_save_path = f"{results_dir}/{dataset_name}/{run_name}/theta/{setting}/{split}_theta.npy"
             np.save(theta_save_path, all_theta.cpu().numpy())
 
             rollout_dic[split] = {
                 "rollout_error": rollout_error/n,
             }
             
-            torch.save(rollout_dic, f"{results_dir}/{dataset_name}/errors/{setting}/rollout.pt")
+            torch.save(rollout_dic, f"{results_dir}/{dataset_name}/{run_name}/errors/{setting}/rollout.pt")
 
             theta_dic[split] = {
                 "theta": all_theta,
@@ -160,7 +165,7 @@ if __name__ == "__main__":
             }
 
         print(f"setting: {setting}", rollout_dic)
-        plot_theta_latent(theta_dic, out_path=f"{results_dir}/{dataset_name}/theta/theta_latent.pdf")
+        plot_theta_latent(theta_dic, out_path=f"{results_dir}/{dataset_name}/{run_name}/theta/theta_latent.pdf")
 
         print("Done.")
 
