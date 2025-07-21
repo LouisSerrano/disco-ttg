@@ -133,7 +133,7 @@ class TemporalBatchDatasetFly(IterableDataset):
     def __init__(self, n_batches, batch_size, sub_x, sub_t, split='train', input_frames=16, output_frames=16,
                  L=16.0, nx=256, nt=100, T=10.0,
                  v_range=(0.01, 1.0), D_range=(0.01, 1.0),
-                 fractal_degree=8, fractal_power_range=2, seed=None):
+                 fractal_degree=8, fractal_power_range=2, seed=None, in_context=True):
         self.n_batches = n_batches
         self.batch_size = batch_size
         self.sub_x = sub_x
@@ -151,6 +151,7 @@ class TemporalBatchDatasetFly(IterableDataset):
         self.fractal_power_range = fractal_power_range
         self.seed = seed
         self.rng = np.random.default_rng(seed)
+        self.in_context = in_context
 
     def __iter__(self):
         for _ in range(self.n_batches):
@@ -160,6 +161,8 @@ class TemporalBatchDatasetFly(IterableDataset):
 
             batch_inputs = []
             batch_targets = []
+            batch_context_inputs = []
+            batch_context_targets = []
             for _ in range(self.batch_size):
                 # Sample advection speed and viscosity
                 if self.split == 'train':
@@ -198,9 +201,38 @@ class TemporalBatchDatasetFly(IterableDataset):
                 target = u_xt[start_index_dec:start_index_dec + self.output_frames].copy()
                 batch_inputs.append(torch.from_numpy(input).unsqueeze(-2).float())
                 batch_targets.append(torch.from_numpy(target).unsqueeze(-2).float())
+
+                # Second trajectory (context)
+                fractal_power_ctx = self.rng.uniform(*self.fractal_power_range) if isinstance(self.fractal_power_range, (tuple, list)) else float(self.fractal_power_range)
+                fractaloid_ctx = Fractaloid(
+                    degree=self.fractal_degree,
+                    power=fractal_power_ctx,
+                    size=self.nx,
+                    patch_size=self.nx
+                )
+                u0_ctx = fractaloid_ctx.generate(batch_size=1, seed=None).squeeze(0).numpy()
+                u0_ctx = (u0_ctx - u0_ctx.mean()) / (u0_ctx.std() + 1e-8)
+                u_xt_ctx, x_ctx, t_ctx = advection_diffusion_analytical(
+                    u0_ctx, L=self.L, v=v, D=D, nt=self.nt, T=self.T
+                )
+                u_xt_ctx = u_xt_ctx[::self.sub_t, ::self.sub_x]
+                max_start_index_input_ctx = u_xt_ctx.shape[0] - input_frames
+                if max_start_index_input_ctx < 0:
+                    raise ValueError("Input frames size is larger than the sequence length (context).")
+                start_index_enc_ctx = self.rng.integers(0, max_start_index_input_ctx + 1)
+                input_ctx = u_xt_ctx[start_index_enc_ctx:start_index_enc_ctx + input_frames].copy()
+                max_start_index_target_ctx = u_xt_ctx.shape[0] - self.output_frames
+                if max_start_index_target_ctx < 0:
+                    raise ValueError("Output frames size is larger than the sequence length (context).")
+                start_index_dec_ctx = self.rng.integers(0, max_start_index_target_ctx + 1)
+                target_ctx = u_xt_ctx[start_index_dec_ctx:start_index_dec_ctx + self.output_frames].copy()
+                batch_context_inputs.append(torch.from_numpy(input_ctx).unsqueeze(-2).float())
+                batch_context_targets.append(torch.from_numpy(target_ctx).unsqueeze(-2).float())
             batch = {
                 'input': torch.stack(batch_inputs),
                 'target': torch.stack(batch_targets),
+                'context_input': torch.stack(batch_context_inputs),
+                'context_target': torch.stack(batch_context_targets),
             }
             yield batch
 
@@ -231,7 +263,7 @@ class DISCOLitModule(L.LightningModule):
         return y_pred
 
     def training_step(self, batch, batch_idx):
-        input = batch['input']
+        input = batch['context_input'] if self.in_context else batch['input']
         target = batch['target']
 
         #input, target = batch
@@ -271,10 +303,46 @@ class DISCOLitModule(L.LightningModule):
         pass  # No longer needed, handled by callback
 
 
-@hydra.main(config_path="configs", config_name="expert")
+def get_run_name(cfg: DictConfig) -> str:
+    """Create a descriptive run name for DISCO Expert training."""
+    # Get dataset name
+    dataset_name = cfg.data.dataset_name
+    
+    # Get model parameters
+    model_params = [
+        f"adj{cfg.model.use_adjoint}",
+        f"h{cfg.model.hidden_dim}",
+        f"nexperts{cfg.model.n_experts}",
+        f"steps{cfg.model.max_steps}",
+    ]
+    
+    # Add training parameters
+    train_params = [
+        f"bs{cfg.training.batch_size}",
+        f"lr{cfg.training.lr}",
+        f"alpha{cfg.training.sparsity_alpha}",
+        f"ctx{cfg.training.in_context}",
+    ]
+    
+    # Add data parameters
+    data_params = [
+        f"inframes{cfg.data.n_input_frames}",
+        f"outframes{cfg.data.n_output_frames}",
+        f"T{cfg.data.T}",
+    ]
+    
+    # Combine all parts
+    return f"DISCOExpert_{dataset_name}_{'_'.join(model_params)}_{'_'.join(train_params)}_{'_'.join(data_params)}"
+
+@hydra.main(config_path="../configs", config_name="expert")
 def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
-    run_name = f"DISCO_adj{cfg.model.use_adjoint}_h{cfg.model.hidden_dim}_nexperts{cfg.model.n_experts}_lr{cfg.training.lr}_steps{cfg.model.max_steps}"  # Example name
+    run_name = get_run_name(cfg)
+    
+    # Create output directory
+    output_dir = cfg.data.output_dir
+    os.makedirs(output_dir, exist_ok=True)
+    
     wandb_logger = WandbLogger(
         project=cfg.training.project,
         config=OmegaConf.to_container(cfg, resolve=True),
@@ -290,14 +358,14 @@ def main(cfg: DictConfig):
         input_frames=cfg.data.n_input_frames,
         output_frames=cfg.data.n_output_frames,
         split='train',
-        L=16.0,
-        nx=256,
-        nt=100,
-        T=10.0,
-        fractal_power_range=(1.0, 8.0),
-        fractal_degree=256, # nx
-        v_range=(0.01, 1.0),
-        D_range=(0.001, 1.0),
+        L=cfg.data.L,
+        nx=cfg.data.nx,
+        nt=cfg.data.nt,
+        T=cfg.data.T,
+        fractal_power_range=tuple(cfg.data.fractal_power_range),
+        fractal_degree=cfg.data.fractal_degree,
+        v_range=tuple(cfg.data.v_range),
+        D_range=tuple(cfg.data.D_range),
     )
     val_ds = train_ds  # You may want a separate validation dataset
 
@@ -307,6 +375,7 @@ def main(cfg: DictConfig):
     model = DISCOLitModule(cfg.model, cfg.training)
 
     checkpoint_callback = ModelCheckpoint(
+        dirpath=os.path.join(output_dir, run_name),
         monitor="val_loss",
         save_top_k=1,
         mode="min",
@@ -325,7 +394,7 @@ def main(cfg: DictConfig):
         callbacks=[checkpoint_callback, lr_monitor],
     )
     trainer.fit(model, train_loader, val_loader)
-    trainer.save_checkpoint("model_final.ckpt")
+    trainer.save_checkpoint(os.path.join(output_dir, run_name, "final.ckpt"))
     wandb.finish()
 
 if __name__ == "__main__":

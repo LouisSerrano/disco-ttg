@@ -10,7 +10,7 @@ import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
 from utils import RelativeL2
-from advection_diffusion import Fractaloid, AdvectionDiffusionExplicit
+from src.advection_diffusion import Fractaloid, AdvectionDiffusionExplicit
 import random
 
 def add_weight_decay(params, weight_decay=1e-5, skip_list=()):
@@ -282,10 +282,45 @@ class DISCOLitModule(L.LightningModule):
         pass  # No longer needed, handled by callback
 
 
-@hydra.main(config_path="configs", config_name="config")
+def get_run_name(cfg: DictConfig) -> str:
+    """Create a descriptive run name for DISCO training."""
+    # Get dataset name
+    dataset_name = cfg.data.dataset_name
+    
+    # Get model parameters
+    model_params = [
+        f"adj{cfg.model.use_adjoint}",
+        f"h{cfg.model.hidden_dim}",
+        f"t{cfg.model.theta_dim}",
+        f"steps{cfg.model.max_steps}",
+    ]
+    
+    # Add training parameters
+    train_params = [
+        f"bs{cfg.training.batch_size}",
+        f"lr{cfg.training.lr}",
+        f"ctx{cfg.training.in_context}",
+    ]
+    
+    # Add data parameters
+    data_params = [
+        f"inframes{cfg.data.n_input_frames}",
+        f"outframes{cfg.data.n_output_frames}",
+        f"T{cfg.data.T}",
+    ]
+    
+    # Combine all parts
+    return f"DISCO_{dataset_name}_{'_'.join(model_params)}_{'_'.join(train_params)}_{'_'.join(data_params)}"
+
+@hydra.main(config_path="../configs", config_name="config")
 def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
-    run_name = f"DISCO_adj{cfg.model.use_adjoint}_h{cfg.model.hidden_dim}_t{cfg.model.theta_dim}_lr{cfg.training.lr}_steps{cfg.model.max_steps}"  # Example name
+    run_name = get_run_name(cfg)
+    
+    # Create output directory
+    output_dir = cfg.data.output_dir
+    os.makedirs(output_dir, exist_ok=True)
+    
     wandb_logger = WandbLogger(
         project=cfg.training.project,
         config=OmegaConf.to_container(cfg, resolve=True),
@@ -301,14 +336,14 @@ def main(cfg: DictConfig):
         input_frames=cfg.data.n_input_frames,
         output_frames=cfg.data.n_output_frames,
         split='train',
-        L=16.0,
-        nx=256,
-        nt=100,
-        T=10.0,
-        fractal_power_range=(1.0, 8.0),
-        fractal_degree=256, # nx
-        v_range=(0.01, 1.0),
-        D_range=(0.001, 1.0),
+        L=cfg.data.L,
+        nx=cfg.data.nx,
+        nt=cfg.data.nt,
+        T=cfg.data.T,
+        fractal_power_range=tuple(cfg.data.fractal_power_range),
+        fractal_degree=cfg.data.fractal_degree,
+        v_range=tuple(cfg.data.v_range),
+        D_range=tuple(cfg.data.D_range),
     )
     val_ds = train_ds  # You may want a separate validation dataset
 
@@ -318,6 +353,7 @@ def main(cfg: DictConfig):
     model = DISCOLitModule(cfg.model, cfg.training)
 
     checkpoint_callback = ModelCheckpoint(
+        dirpath=os.path.join(output_dir, run_name),
         monitor="val_loss",
         save_top_k=1,
         mode="min",
@@ -336,7 +372,7 @@ def main(cfg: DictConfig):
         callbacks=[checkpoint_callback, lr_monitor],
     )
     trainer.fit(model, train_loader, val_loader)
-    trainer.save_checkpoint("model_final.ckpt")
+    trainer.save_checkpoint(os.path.join(output_dir, run_name, "final.ckpt"))
     wandb.finish()
 
 if __name__ == "__main__":

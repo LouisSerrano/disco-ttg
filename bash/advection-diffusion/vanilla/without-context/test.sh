@@ -15,4 +15,4 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate 
 
-python3 test.py hydra.run.dir=. test.setting="dense" test.ckpt_time=2025-06-18/22-51-43 #test.ckpt_path=outputs/2025-06-15/23-46-48/model_final.ckpt
+python3 tests/test.py hydra.run.dir=. test.setting="dense" test.ckpt_time=2025-06-18/22-51-43 #test.ckpt_path=outputs/2025-06-15/23-46-48/model_final.ckpt

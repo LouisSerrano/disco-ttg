@@ -15,4 +15,4 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate 
 
-python3 test_time_optimization.py 
+python3 train/train.py model.max_steps=1 model.use_adjoint=False model.decoder_use_bias=True training.max_steps=100000 training.in_context=False

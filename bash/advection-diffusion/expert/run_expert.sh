@@ -15,4 +15,4 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate 
 
-python3 train_expert.py model.max_steps=10 model.use_adjoint=False training.max_steps=100000 training.sparsity_alpha=1 training.lr=5e-4 training.batch_size=64 data.n_output_frames=2 
+python3 train/train_expert.py model.max_steps=10 model.use_adjoint=False training.max_steps=100000 training.sparsity_alpha=1 training.lr=5e-4 training.batch_size=64 data.n_output_frames=2 

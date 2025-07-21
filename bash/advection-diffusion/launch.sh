@@ -11,4 +11,4 @@
 
 module load python
 
-python3 generate_dataset_explicit.py 
+python3 src/old/generate_dataset_explicit.py 
