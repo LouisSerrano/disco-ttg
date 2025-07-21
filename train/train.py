@@ -12,6 +12,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
 from utils import RelativeL2
 from src.advection_diffusion import Fractaloid, AdvectionDiffusionExplicit
 import random
+import math
 
 def add_weight_decay(params, weight_decay=1e-5, skip_list=()):
     """ From Ross Wightman at:
@@ -33,6 +34,54 @@ def add_weight_decay(params, weight_decay=1e-5, skip_list=()):
         {'params': no_decay, 'weight_decay': 0.,},
         {'params': decay, 'weight_decay': weight_decay}
     ]
+
+
+class CosineWithWarmupScheduler:
+    """Cosine annealing with linear warmup scheduler"""
+    def __init__(self, optimizer, warmup_steps, total_steps, min_lr_ratio=0.0):
+        self.optimizer = optimizer
+        self.warmup_steps = warmup_steps
+        self.total_steps = total_steps
+        self.min_lr_ratio = min_lr_ratio
+        self.base_lrs = [group['lr'] for group in optimizer.param_groups]
+        self.current_step = 0
+    
+    def step(self):
+        self.current_step += 1
+        
+        if self.current_step <= self.warmup_steps:
+            # Linear warmup
+            lr_scale = self.current_step / self.warmup_steps
+        else:
+            # Cosine annealing
+            progress = (self.current_step - self.warmup_steps) / (self.total_steps - self.warmup_steps)
+            progress = min(progress, 1.0)  # Clamp to [0, 1]
+            lr_scale = self.min_lr_ratio + 0.5 * (1 - self.min_lr_ratio) * (1 + math.cos(math.pi * progress))
+        
+        for param_group, base_lr in zip(self.optimizer.param_groups, self.base_lrs):
+            param_group['lr'] = base_lr * lr_scale
+    
+    def get_last_lr(self):
+        return [group['lr'] for group in self.optimizer.param_groups]
+
+
+def compute_gradient_stats(model):
+    """Compute detailed gradient statistics per layer"""
+    grad_stats = {}
+    total_norm = 0
+    
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            grad = param.grad.detach()
+            param_norm = grad.norm().item()
+            total_norm += param_norm ** 2
+            
+            grad_stats[f'grad_norm/{name}'] = param_norm
+            grad_stats[f'grad_mean/{name}'] = grad.mean().item()
+            grad_stats[f'grad_std/{name}'] = grad.std().item()
+    
+    grad_stats['grad_norm/total'] = total_norm ** 0.5
+    return grad_stats
 
 
 def advection_diffusion_analytical(u0, L=16.0, v=0.1, D=0.5, nt=100, T=10.0):
@@ -256,6 +305,19 @@ class DISCOLitModule(L.LightningModule):
         y_pred, metadata = self.model(input, state_labels, y=target, n_future_steps=target.shape[1]-1)
         loss = self.loss_fn(y_pred, target[:,1:])
         self.manual_backward(loss)
+        
+        # Safe gradient monitoring and clipping
+        if batch_idx % 100 == 0:  # Log every 100 steps
+            try:
+                grad_stats = compute_gradient_stats(self.model)
+                self.log_dict(grad_stats, on_step=True, logger=True)
+            except Exception:
+                # Fail silently to not break training
+                pass
+        
+        # Add gradient clipping for stability
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+        
         optimizer.step()
         scheduler.step()
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
@@ -275,7 +337,17 @@ class DISCOLitModule(L.LightningModule):
         #parameters_standard = self.named_parameters()
         #parameters = add_weight_decay(parameters_standard, self.weight_decay) 
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.max_steps)
+        
+        # Use warmup steps if specified, otherwise default to 10% of max_steps
+        warmup_steps = getattr(self, 'warmup_steps', int(0.1 * self.max_steps))
+        min_lr_ratio = getattr(self, 'min_lr_ratio', 0.0)
+        
+        scheduler = CosineWithWarmupScheduler(
+            optimizer, 
+            warmup_steps=warmup_steps, 
+            total_steps=self.max_steps, 
+            min_lr_ratio=min_lr_ratio
+        )
         return {"optimizer": optimizer, "lr_scheduler": scheduler}
 
     def on_train_epoch_start(self):
@@ -326,6 +398,11 @@ def main(cfg: DictConfig):
         config=OmegaConf.to_container(cfg, resolve=True),
         name=run_name
     )
+    
+    # Configure enhanced wandb logging for gradients
+    wandb_logger.experiment.define_metric("grad_norm/*", step_metric="trainer/global_step")
+    wandb_logger.experiment.define_metric("grad_mean/*", step_metric="trainer/global_step")
+    wandb_logger.experiment.define_metric("grad_std/*", step_metric="trainer/global_step")
 
     n_batches = int(10000//cfg.training.batch_size)  # or set as needed for your epoch size
     train_ds = TemporalBatchDatasetFly(

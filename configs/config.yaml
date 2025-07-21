@@ -5,6 +5,8 @@ training:
   lr: 5e-4
   weight_decay: 1e-4
   in_context: True
+  warmup_steps: 
+  min_lr_ratio: 1e-3
 
 data:
   dataset_name: "advection-diffusion"
