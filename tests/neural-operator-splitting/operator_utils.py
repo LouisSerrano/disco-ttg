@@ -12,7 +12,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from models import vectors_to_parameters
+from src.operators.disco import vectors_to_parameters
 
 
 def get_batched_operators(theta_batch, model, dim=1):

@@ -5,11 +5,11 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset, IterableDataset
 import wandb
-from models import DISCOExpert
+from src.operators.disco_ablations import DISCOExpert
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
-from utils import RelativeL2
+from src.utils import RelativeL2
 from src.advection_diffusion import Fractaloid, AdvectionDiffusionExplicit
 import random
 

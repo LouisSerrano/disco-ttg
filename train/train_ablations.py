@@ -11,7 +11,7 @@ from src.disco_ablations import DiscoAblations
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
-from utils import RelativeL2
+from src.utils import RelativeL2
 from src.advection_diffusion import Fractaloid, AdvectionDiffusionExplicit
 import random
 import math

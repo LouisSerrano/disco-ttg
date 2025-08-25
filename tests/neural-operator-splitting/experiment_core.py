@@ -33,7 +33,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Import DISCO components
-from models import DISCOHouse, vectors_to_parameters
+from src.operators.disco import DISCOHouse, vectors_to_parameters
 from train.train import DISCOLitModule
 from src.plot_dataset_samples import plot_prediction_vs_ground_truth
 

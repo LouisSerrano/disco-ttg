@@ -5,9 +5,9 @@ import sys
 import os
 
 # Add src directory to path to import disco_operator
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from disco_operator import DiscoOperator, DiscoEncoder, disco_operator_base, disco_operator_large
+from src.operators.disco_operator import DiscoOperator, DiscoEncoder, disco_operator_base, disco_operator_large
 
 
 class TestDiscoEncoder:
