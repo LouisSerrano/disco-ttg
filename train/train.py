@@ -11,7 +11,7 @@ import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
 from utils import RelativeL2
-from src.advection_diffusion import Fractaloid, AdvectionDiffusionExplicit
+from src.advection_diffusion import Fractaloid, FractaloidPhase, AdvectionDiffusionExplicit
 import random
 import math
 
@@ -201,7 +201,7 @@ class TemporalBatchDatasetFly(IterableDataset):
                     D = self.rng.uniform(*self.D_range) if isinstance(self.D_range, (tuple, list)) else float(self.D_range)
                 # Generate fractaloid initial condition
                 fractal_power = self.rng.uniform(*self.fractal_power_range) if isinstance(self.fractal_power_range, (tuple, list)) else float(self.fractal_power_range)
-                fractaloid = Fractaloid(
+                fractaloid = FractaloidPhase(
                     degree=self.fractal_degree,
                     power=fractal_power,
                     size=self.nx,
@@ -213,16 +213,17 @@ class TemporalBatchDatasetFly(IterableDataset):
                     u0, L=self.L, v=v, D=D, nt=self.nt, T=self.T
                 )
                 u_xt = u_xt[::self.sub_t, ::self.sub_x]
-                max_start_index_input = u_xt.shape[0] - input_frames
+                max_start_index_input = u_xt.shape[0] - input_frames - self.output_frames
                 if max_start_index_input < 0:
                     raise ValueError("Input frames size is larger than the sequence length.")
                 start_index_enc = self.rng.integers(0, max_start_index_input + 1)
                 input = u_xt[start_index_enc:start_index_enc + input_frames].copy()
-                max_start_index_target = u_xt.shape[0] - self.output_frames
-                if max_start_index_target < 0:
-                    raise ValueError("Output frames size is larger than the sequence length.")
-                start_index_dec = self.rng.integers(0, max_start_index_target + 1)
-                target = u_xt[start_index_dec:start_index_dec + self.output_frames].copy()
+                #max_start_index_target = u_xt.shape[0] - self.output_frames
+                #if max_start_index_target < 0:
+                #    raise ValueError("Output frames size is larger than the sequence length.")
+                #start_index_dec = self.rng.integers(0, max_start_index_target + 1)
+                #target = u_xt[start_index_dec:start_index_dec + self.output_frames].copy()
+                target = u_xt[start_index_enc + input_frames: start_index_enc + input_frames + self.output_frames].copy()
                 batch_inputs.append(torch.from_numpy(input).unsqueeze(-2).float())
                 batch_targets.append(torch.from_numpy(target).unsqueeze(-2).float())
 
@@ -245,11 +246,13 @@ class TemporalBatchDatasetFly(IterableDataset):
                     raise ValueError("Input frames size is larger than the sequence length (context).")
                 start_index_enc_ctx = self.rng.integers(0, max_start_index_input_ctx + 1)
                 input_ctx = u_xt_ctx[start_index_enc_ctx:start_index_enc_ctx + input_frames].copy()
+                #input_ctx = u_xt_ctx[start_index_enc:start_index_enc + input_frames].copy()
                 max_start_index_target_ctx = u_xt_ctx.shape[0] - self.output_frames
                 if max_start_index_target_ctx < 0:
                     raise ValueError("Output frames size is larger than the sequence length (context).")
                 start_index_dec_ctx = self.rng.integers(0, max_start_index_target_ctx + 1)
                 target_ctx = u_xt_ctx[start_index_dec_ctx:start_index_dec_ctx + self.output_frames].copy()
+                #target_ctx = u_xt_ctx[start_index_enc + input_frames: start_index_enc + input_frames + self.output_frames].copy()
                 batch_context_inputs.append(torch.from_numpy(input_ctx).unsqueeze(-2).float())
                 batch_context_targets.append(torch.from_numpy(target_ctx).unsqueeze(-2).float())
 
@@ -291,12 +294,16 @@ class DISCOLitModule(L.LightningModule):
         input = batch['context_input'] if self.in_context else batch['input']
         target = batch['target'] 
 
+        # Add Gaussian noise to first timestamp during training if noise_level is set
+        if hasattr(self, 'noise_level') and self.noise_level is not None:
+            target[:, 0, ...] += torch.randn_like(target[:, 0, ...]) * self.noise_level
+
         #input, target = batch
         state_labels = torch.tensor([0], device=input.device)
         optimizer = self.optimizers()
         scheduler = self.lr_schedulers()
         optimizer.zero_grad()
-        y_pred, metadata = self.model(input, state_labels, y=target, n_future_steps=target.shape[1]-1)
+        y_pred, metadata = self.model(input, state_labels, y=target, n_future_steps=target.shape[1]-1, integration_time=target.shape[1]-1)
         loss = self.loss_fn(y_pred, target[:,1:])
         self.manual_backward(loss)
         
@@ -321,7 +328,7 @@ class DISCOLitModule(L.LightningModule):
         input = batch['input']
         target = batch['target']
         state_labels = torch.tensor([0], device=input.device)
-        y_pred, metadata = self.model(input, state_labels, y=target, n_future_steps=target.shape[1]-1)
+        y_pred, metadata = self.model(input, state_labels, y=target, n_future_steps=target.shape[1]-1, integration_time=target.shape[1]-1)
 
         loss = self.loss_fn(y_pred, target[:,1:])
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
@@ -333,7 +340,8 @@ class DISCOLitModule(L.LightningModule):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         
         # Use warmup steps if specified, otherwise default to 10% of max_steps
-        warmup_steps = getattr(self, 'warmup_steps', int(0.1 * self.max_steps))
+        warmup_steps = getattr(self, 'warmup_steps', int(0.05 * self.max_steps))
+        warmup_steps = int(0.05 * self.max_steps) if warmup_steps is None else warmup_steps
         min_lr_ratio = getattr(self, 'min_lr_ratio', 0.0)
         
         scheduler = CosineWithWarmupScheduler(
@@ -355,10 +363,12 @@ def get_run_name(cfg: DictConfig) -> str:
     
     # Get model parameters
     model_params = [
+        f"solver{cfg.model.solver}",
         f"adj{cfg.model.use_adjoint}",
         f"h{cfg.model.hidden_dim}",
         f"t{cfg.model.theta_dim}",
         f"steps{cfg.model.max_steps}",
+        f"init{cfg.model.principled_initialization}",
     ]
     
     # Add training parameters
@@ -367,6 +377,10 @@ def get_run_name(cfg: DictConfig) -> str:
         f"lr{cfg.training.lr}",
         f"ctx{cfg.training.in_context}",
     ]
+    
+    # Add noise level if specified
+    if hasattr(cfg.training, 'noise_level') and cfg.training.noise_level is not None:
+        train_params.append(f"noise{cfg.training.noise_level}")
     
     # Add data parameters
     data_params = [
@@ -418,8 +432,8 @@ def main(cfg: DictConfig):
     )
     val_ds = train_ds  # You may want a separate validation dataset
 
-    train_loader = DataLoader(train_ds, batch_size=None, num_workers=4, prefetch_factor=4, pin_memory=True)
-    val_loader = DataLoader(val_ds, batch_size=None, num_workers=4, prefetch_factor=4, pin_memory=True)
+    train_loader = DataLoader(train_ds, batch_size=None, num_workers=4, prefetch_factor=4, pin_memory=False)
+    val_loader = DataLoader(val_ds, batch_size=None, num_workers=4, prefetch_factor=4, pin_memory=False)
 
     model = DISCOLitModule(cfg.model, cfg.training)
 

@@ -10,13 +10,13 @@ import torch.nn as nn
 import numpy as np
 from typing import Optional, Dict, Any, Tuple
 try:
-    from torchdiffeq import odeint
+    from torchdiffeq import odeint, odeint_adjoint
     TORCHDIFFEQ_AVAILABLE = True
 except ImportError:
     print("Warning: torchdiffeq not available. Installing...")
     import subprocess
     subprocess.check_call(["pip", "install", "torchdiffeq"])
-    from torchdiffeq import odeint
+    from torchdiffeq import odeint, odeint_adjoint
     TORCHDIFFEQ_AVAILABLE = True
 
 
@@ -385,7 +385,8 @@ class AdvectionNeuralODE(nn.Module):
                 num_steps: int = None,
                 method: str = 'rk4',
                 rtol: float = 1e-7,
-                atol: float = 1e-9) -> Tuple[int, torch.Tensor]:
+                atol: float = 1e-9,
+                use_adjoint: bool = False) -> Tuple[int, torch.Tensor]:
         """
         Integrate the neural ODE forward in time.
         
@@ -397,6 +398,7 @@ class AdvectionNeuralODE(nn.Module):
             method: ODE solver method ('euler', 'rk4', 'dopri5', etc.)
             rtol: Relative tolerance
             atol: Absolute tolerance
+            use_adjoint: If True, use adjoint method for memory-efficient gradients
             
         Returns:
             Tuple of (number of steps, solution at time points (len(t_span), batch_size, nx))
@@ -413,8 +415,11 @@ class AdvectionNeuralODE(nn.Module):
             t_span = torch.linspace(0, T_scalar, num_steps + 1, device=device)
             #print(f"T: {T}, t_span: {t_span}")
         
+        # Choose between standard and adjoint ODE solver
+        solver_func = odeint_adjoint if use_adjoint else odeint
+        
         # Solve neural ODE
-        solution = odeint(
+        solution = solver_func(
             self.ode_func,
             u0,
             t_span,
@@ -496,7 +501,8 @@ class DiffusionNeuralODE(nn.Module):
                 num_steps: int = None,
                 method: str = 'rk4',
                 rtol: float = 1e-7,
-                atol: float = 1e-9) -> Tuple[int, torch.Tensor]:
+                atol: float = 1e-9,
+                use_adjoint: bool = False) -> Tuple[int, torch.Tensor]:
         """
         Integrate the neural ODE forward in time.
         
@@ -508,6 +514,7 @@ class DiffusionNeuralODE(nn.Module):
             method: ODE solver method
             rtol: Relative tolerance
             atol: Absolute tolerance
+            use_adjoint: If True, use adjoint method for memory-efficient gradients
             
         Returns:
             Tuple of (number of steps, solution at time points (len(t_span), batch_size, nx))
@@ -524,7 +531,10 @@ class DiffusionNeuralODE(nn.Module):
             t_span = torch.linspace(0, T_scalar, num_steps + 1, device=device)
             #print(f"T: {T}, t_span: {t_span}")
         
-        solution = odeint(
+        # Choose between standard and adjoint ODE solver
+        solver_func = odeint_adjoint if use_adjoint else odeint
+        
+        solution = solver_func(
             self.ode_func,
             u0,
             t_span,

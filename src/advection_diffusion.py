@@ -375,6 +375,51 @@ class Fractaloid(FourierBased):
             return torch.arange(1, degree+1) ** (-self.power)
 
 
+class FractaloidPhase(FourierBased):
+    """ Generate power-law power-spectrum random signals with random phases. Such signals are self-similar. """
+
+    def __init__(self, 
+        degree: int,
+        power: float,
+        size: int, 
+        patch_size: int | None = None
+    ):
+        super().__init__(size, patch_size, degree)
+        self.degree = degree
+        self.power = power  # the larger the smoother the signal
+
+    def power_spectrum(self, degree: int, batch_size: int | None = None) -> torch.Tensor:
+        """ Power-spectrum of the fractaloid. """
+        if batch_size is None:
+            return torch.arange(1, degree+1) ** (-self.power)
+        else:
+            return torch.arange(1, degree+1) ** (-self.power)
+
+    def generate_pattern(self, batch_size: int, seed: int | None) -> torch.Tensor:
+        """ Generate fractaloid with random phases. """
+        u0 = torch.zeros(batch_size, self.size)
+
+        # phases 0, \theta, 2x\theta, ... degree x \theta
+        phase = np.linspace(0, 2*torch.pi, self.patch_size, endpoint=False)
+        phase = torch.from_numpy(phase).float()
+        phase = torch.arange(1,self.degree+1)[:,None] * phase[None,:]
+
+        # random coefficients a_0, a_1, ... a_degree
+        with set_seed(seed):
+            proj = torch.randn(batch_size, self.degree)
+            # Add random phases for each sine component
+            random_phases = torch.rand(batch_size, self.degree) * 2 * torch.pi
+
+        # apply the desired power spectrum 
+        power_spectrum = self.power_spectrum(self.degree)
+        proj = proj * power_spectrum[None,:]
+
+        # Apply sine with random phases
+        u0[:, :self.patch_size] = proj @ torch.sin(phase + random_phases[:,:,None])
+
+        return u0
+
+
 class FourierSmooth(FourierBased):
     """ Generate exponential power-spectrum random signals. Such signals are smooth. """
 

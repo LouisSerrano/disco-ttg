@@ -1,0 +1,64 @@
+training:
+  project: "disco-ball-operator"
+  max_steps: 50000
+  batch_size: 64
+  lr: 1e-4
+  weight_decay: 1e-4
+  in_context: True
+  warmup_steps: 1000
+  min_lr_ratio: 1e-3
+
+data:
+  dataset_name: "advection-diffusion-operator"
+  output_dir: "/mnt/home/lserrano/disco-ball/outputs/"
+  sub_x: 1
+  sub_t: 1
+  n_input_frames: 16
+  n_output_frames: 16
+  # Dataset generation parameters for on-the-fly generation
+  L: 16.0
+  nx: 256
+  nt: 100
+  T: 10.0
+  fractal_power_range: [1.0, 8.0]
+  fractal_degree: 8
+  v_range: [0.01, 1.0]
+  D_range: [0.001, 1.0]
+
+model:
+  # DiscoOperator encoder parameters
+  grid_size: 256
+  patch_size: 16
+  in_chans: 1
+  history: 16
+  embed_dim: 128
+  encoder_depth: 4
+  num_heads: 4
+  mlp_ratio: 4.0
+  
+  # UNet neural operator parameters
+  n_output_scalar_components: 1
+  n_output_vector_components: 0
+  time_future: 1
+  hidden_channels: 64
+  activation: "gelu"
+  norm: false
+  ch_mults: [1, 2, 2, 2]
+  is_attn: [false, false, false, false]
+  mid_attn: false
+  n_blocks: 2
+  param_conditioning: null
+  use_scale_shift_norm: false
+  use1x1: false
+  n_dims: 1
+  code_dim: 2
+
+test:
+  run_name: 
+  ckpt_time: 
+  ckpt_path: "outputs/${test.ckpt_time}/model_final.ckpt"
+  dataset_name: "advection_diffusion"
+  n_input: 16
+  n_pred: 50
+  results_dir: "/mnt/home/lserrano/disco-ball/results/"
+  splits: ["train", "val", "test"]

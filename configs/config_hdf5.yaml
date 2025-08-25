@@ -1,0 +1,62 @@
+training:
+  project: "disco-ball"
+  max_steps: 100000
+  batch_size: 64
+  lr: 5e-4
+  weight_decay: 1e-4
+  in_context: False  # Disabled for HDF5 dataset
+  warmup_steps: 1000 
+  min_lr_ratio: 1e-3
+  noise_level: 0.001
+  num_workers: 4
+  prefetch_factor: 2
+
+data:
+  dataset_name: "combined-physics-hdf5"
+  # HDF5 file configuration - separate files for train/val/test
+  train_hdf5_files: 
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_train_8192.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_train_8192.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_train_8192.h5"
+  val_hdf5_files:
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_valid.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_valid.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_valid.h5"
+  test_hdf5_files:
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_test.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_test.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_test.h5"
+  # Legacy support - will be ignored if train_hdf5_files is present
+  hdf5_files: 
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_train_8192.h5"
+  output_dir: "/mnt/home/lserrano/disco-ball/outputs/"
+  sub_x: 1
+  sub_t: 1
+  n_input_frames: 16
+  n_output_frames: 2
+
+model:
+  n_states: 1
+  hidden_dim: 128
+  theta_dim: 2
+  patch_size: 8
+  ndims: [1]
+  groups: 1 
+  processor_blocks: 4
+  drop_path: 0.
+  num_heads: 4
+  bias_type: "rel"
+  hpnn_head_hidden_dim: 128
+  max_steps: 1
+  atol: 1e-6
+  rtol: 1e-5 
+  use_adjoint: False
+  solver: rk4
+  decoder_use_bias: True
+  principled_initialization: False
+
+test:
+  dataset_name: "euler_hdf5"
+  results_dir: "/mnt/home/lserrano/disco-ball/results/"
+  splits: ["train", "val", "test"]
+  num_steps: 1

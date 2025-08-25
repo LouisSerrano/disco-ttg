@@ -131,7 +131,7 @@ class NeuralODETrainer:
         relative_error = l2_diff / (l2_target + 1e-8)
         return torch.mean(relative_error)
         
-    def train_step(self, batch: Dict, method: str = 'rk4') -> float:
+    def train_step(self, batch: Dict, method: str = 'rk4', use_adjoint: bool = False) -> float:
         """Single training step."""
         self.model.train()
         self.optimizer.zero_grad()
@@ -151,7 +151,7 @@ class NeuralODETrainer:
 
         target = u_sequence[:, start_idx+1:start_idx+2]  # (batch_size, remaining_steps, nx)
         
-        n_steps, pred_trajectory = self.model(u0, T=t_seq[0], method=method)  # (remaining_steps, batch_size, nx)
+        n_steps, pred_trajectory = self.model(u0, T=t_seq[0], method=method, use_adjoint=use_adjoint)  # (remaining_steps, batch_size, nx)
         
         pred_trajectory = pred_trajectory.squeeze(2)  # Remove extra dimension if present
         pred_trajectory = pred_trajectory[-1:] # we take the last time-stamp
@@ -171,7 +171,7 @@ class NeuralODETrainer:
         
         return loss.item()
     
-    def validate(self, val_loader: DataLoader, method: str = 'rk4') -> float:
+    def validate(self, val_loader: DataLoader, method: str = 'rk4', use_adjoint: bool = False) -> float:
         """Validation step."""
         self.model.eval()
         total_loss = 0.0
@@ -193,7 +193,7 @@ class NeuralODETrainer:
                 t_seq = t_sequence[:, 1]  # (batch_size, remaining_steps)
                 target = u_sequence[:, start_idx+1:start_idx+2]  # (batch_size, remaining_steps, nx)
                 
-                n_steps, pred_trajectory = self.model(u0, T=t_seq[0], method=method)  # (remaining_steps, batch_size, nx)
+                n_steps, pred_trajectory = self.model(u0, T=t_seq[0], method=method, use_adjoint=use_adjoint)  # (remaining_steps, batch_size, nx)
                 pred_trajectory = pred_trajectory[-1:] # we take the last time-stamp
                 
                 pred_trajectory = pred_trajectory.squeeze(2)  # Remove extra dimension if present
@@ -215,7 +215,8 @@ class NeuralODETrainer:
               num_epochs: int = 100,
               method: str = 'rk4',
               save_path: Optional[str] = None,
-              verbose: bool = True) -> Dict:
+              verbose: bool = True,
+              use_adjoint: bool = False) -> Dict:
         """
         Train the neural ODE model.
         
@@ -226,6 +227,7 @@ class NeuralODETrainer:
             method: ODE solver method
             save_path: Path to save best model
             verbose: Whether to print progress
+            use_adjoint: Whether to use adjoint method during training
             
         Returns:
             Training history dictionary
@@ -233,7 +235,7 @@ class NeuralODETrainer:
         best_val_loss = float('inf')
         
         if verbose:
-            print(f"Training neural ODE with {method} solver...")
+            print(f"Training neural ODE with {method} solver{'(adjoint)' if use_adjoint else ''}...")
             print(f"Device: {self.device}")
             print(f"Number of parameters: {sum(p.numel() for p in self.model.parameters())}")
         
@@ -249,7 +251,7 @@ class NeuralODETrainer:
                 pbar = train_loader
             
             for batch in pbar:
-                loss = self.train_step(batch, method)
+                loss = self.train_step(batch, method, use_adjoint)
                 train_loss += loss
                 num_batches += 1
                 
@@ -260,7 +262,7 @@ class NeuralODETrainer:
             self.train_losses.append(avg_train_loss)
             
             # Validation phase
-            val_loss = self.validate(val_loader, method)
+            val_loss = self.validate(val_loader, method, use_adjoint)
             self.val_losses.append(val_loss)
             
             # Learning rate scheduling
@@ -319,9 +321,9 @@ class NeuralODETrainer:
 
 
 def train_neural_operators(nx: int = 256,
-                          L: float = 2*np.pi,
+                          L: float = 16.0,
                           beta: float = 1.0,
-                          nu: float = 0.1,
+                          nu: float = 0.5,
                           hidden_dim: int = 64,
                           n_layers: int = 3,
                           num_epochs: int = 100,
@@ -335,7 +337,9 @@ def train_neural_operators(nx: int = 256,
                           verbose: bool = True,
                           sequence_length=20,
                           dt=0.01,
-                          T=1) -> Dict:
+                          T=10.0,
+                          nt: int = 100,
+                          use_adjoint: bool = False) -> Dict:
     """
     Train neural operators for advection and diffusion.
     
@@ -353,6 +357,7 @@ def train_neural_operators(nx: int = 256,
         device: Device to use ('auto', 'cpu', 'cuda')
         save_dir: Directory to save models
         verbose: Whether to print progress
+        use_adjoint: Whether to use adjoint method during training
         
     Returns:
         Dictionary with trained models and histories
@@ -373,7 +378,7 @@ def train_neural_operators(nx: int = 256,
         print("Generating training data...")
     
     advection_data, diffusion_data, _ = generate_training_data(
-        nx=nx, L=L, beta_values=[beta], nu_values=[nu], dt=dt, T=T, n_initial_conditions=training_size
+        nx=nx, L=L, beta_values=[beta], nu_values=[nu], dt=dt, T=T, nt=nt, n_initial_conditions=training_size
     )
     #print('advection_data', advection_data['trajectories'])
     
@@ -417,7 +422,8 @@ def train_neural_operators(nx: int = 256,
     advection_history = advection_trainer.train(
         train_loader, val_loader, num_epochs, method,
         save_path=os.path.join(save_dir, 'advection_model.pth'),
-        verbose=verbose
+        verbose=verbose,
+        use_adjoint=use_adjoint
     )
     
     results['advection'] = {
@@ -464,7 +470,8 @@ def train_neural_operators(nx: int = 256,
     diffusion_history = diffusion_trainer.train(
         train_loader, val_loader, num_epochs, method,
         save_path=os.path.join(save_dir, 'diffusion_model.pth'),
-        verbose=verbose
+        verbose=verbose,
+        use_adjoint=use_adjoint
     )
     
     results['diffusion'] = {
@@ -503,10 +510,14 @@ if __name__ == "__main__":
     # Train neural operators
     print("Training Neural ODE Operators...")
     
-    # Configuration
+    # Configuration - aligned with train/train.py
     config = {
-        'nx': 64,
-        'L': 2*np.pi,
+        'nx': 256,
+        'L': 16.0,
+        'beta': 1.0,
+        'nu': 0.5,
+        'T': 10.0,
+        'nt': 100,
         'hidden_dim': 32,  # Smaller for faster training
         'n_layers': 2,
         'num_epochs': 50,

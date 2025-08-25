@@ -1,7 +1,7 @@
 import torch
 import numpy as np
-from advection_diffusion import Fractaloid
-from train import DISCOLitModule, advection_diffusion_analytical
+from src.advection_diffusion import Fractaloid
+from train.train import DISCOLitModule, advection_diffusion_analytical
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from utils import RelativeL2
@@ -9,8 +9,11 @@ from models import DISCOHouse
 import csv
 from itertools import product
 import os
+import random
+from torch.optim.lr_scheduler import CosineAnnealingLR
 import hydra
 from omegaconf import DictConfig
+import matplotlib.pyplot as plt
 
 class TemporalDatasetFixedCI(torch.utils.data.Dataset):
     def __init__(self, n_batches, batch_size, sub_x, sub_t, split="train", input_frames=16, output_frames=2,
@@ -85,6 +88,177 @@ class TemporalDatasetFixedCI(torch.utils.data.Dataset):
         return batch
     
 
+def fine_tune_theta_latent(model, theta_latent1, theta_latent2, x_test, y_test, state_labels, dim, 
+                           n_input_frames=16, n_output_frames=34, epochs=500, 
+                           composition_type="composition", device="cuda", 
+                           optimizer_type="adam", lr=1e-1, momentum=0.9, training_horizon=1, num_steps=1,
+                           advection_speed=0.0, diffusion_coeff=0.0, debug_dir="debug_predictions"):
+    """
+    Fine-tune theta latent parameters to minimize rollout error.
+    
+    Args:
+        model: The DISCO model
+        theta_latent1: Initial theta latent parameters for first operator
+        theta_latent2: Initial theta latent parameters for second operator
+        x_test: Input test data
+        y_test: Target test data  
+        state_labels: State labels for the model
+        dim: Spatial dimension
+        n_input_frames: Number of input frames
+        n_output_frames: Number of output frames to predict
+        epochs: Number of training epochs
+        composition_type: Type of composition ("sum" or "composition")
+        device: Device to run on
+        num_steps: Number of sub-steps for finer dt integration
+        advection_speed: Advection speed for debug output
+        diffusion_coeff: Diffusion coefficient for debug output  
+        debug_dir: Directory to save debug files
+        
+    Returns:
+        float: Final rollout error for the second part of the trajectory
+    """
+    relative_l2_error = RelativeL2()
+    
+    # Initialize theta latent parameters for fine-tuning
+    theta_latent1_opt = torch.zeros_like(theta_latent1.detach()).requires_grad_()
+    theta_latent2_opt = torch.zeros_like(theta_latent2.detach()).requires_grad_()
+    
+    # Optimizer and scheduler
+    if optimizer_type.lower() == "sgd":
+        optimizer = torch.optim.SGD([theta_latent1_opt, theta_latent2_opt], lr=lr, weight_decay=0)
+    elif optimizer_type.lower() == "sgd_momentum":
+        optimizer = torch.optim.SGD([theta_latent1_opt, theta_latent2_opt], lr=lr, momentum=momentum, weight_decay=0)
+    elif optimizer_type.lower() == "adam":
+        optimizer = torch.optim.Adam([theta_latent1_opt, theta_latent2_opt], lr=lr, weight_decay=0)
+    else:
+        raise ValueError(f"Unknown optimizer type: {optimizer_type}")
+    
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    
+    print("Starting fine-tuning...")
+    
+    for epoch in tqdm(range(epochs), desc="Fine-tuning"):
+        model.train()
+        
+        # Random time step for training
+        t = random.randint(0, n_input_frames - training_horizon - 1)
+        
+        # Decode theta parameters
+        theta1 = model.decode_theta(theta_latent1_opt, dim)
+        theta2 = model.decode_theta(theta_latent2_opt, dim)
+        
+        # Forward pass
+        if composition_type == "sum":
+            pred, _ = model.solve_ode_with_2_operators(
+                x_test[:, t], theta1, theta2, state_labels, dim, 
+                n_future_steps=training_horizon, predict_normed=False, metadata={}
+            )
+        else:
+            pred = []
+            x_test_ = x_test[:, t].clone()
+            for _ in range(training_horizon):
+                current_state = x_test_
+                for _ in range(num_steps):
+                    pred_int, _ = model.solve_ode(
+                        current_state, theta1, state_labels, dim, 
+                        n_future_steps=1, integration_time=1/num_steps, dt=1/num_steps, predict_normed=False, metadata={}
+                    )
+                    pred_, _ = model.solve_ode(
+                        pred_int[:, -1], theta2, state_labels, dim, 
+                        n_future_steps=1, integration_time=1/num_steps, dt=1/num_steps, predict_normed=False, metadata={}
+                    )
+                    current_state = pred_[:, -1]
+                
+                pred.append(current_state)
+                x_test_ = current_state
+            pred = torch.cat(pred, 1)
+        
+        # Calculate loss
+        loss = relative_l2_error(pred, x_test[:, t+1:t+training_horizon+1])
+        
+        # Backward pass
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        scheduler.step()
+        
+        # Print progress every 50 epochs
+        if (epoch + 1) % 50 == 0 or epoch == 0:
+            with torch.no_grad():
+                model.eval()
+                theta1 = model.decode_theta(theta_latent1_opt, dim)
+                theta2 = model.decode_theta(theta_latent2_opt, dim)
+                
+                # Evaluate on full trajectory
+                pred_test = []
+                x_test_ = x_test[:, -1].clone()
+                for _ in range(n_output_frames):
+                    if composition_type == "sum":
+                        pred, _ = model.solve_ode_with_2_operators(
+                            x_test_, theta1, theta2, state_labels, dim, 
+                            n_future_steps=1, predict_normed=False, metadata={}
+                        )
+                    else:
+                        current_state = x_test_
+                        for _ in range(num_steps):
+                            pred_int, _ = model.solve_ode(
+                                current_state, theta1, state_labels, dim, integration_time=1/num_steps, dt=1/num_steps,
+                                n_future_steps=1, predict_normed=False, metadata={}
+                            )
+                            pred, _ = model.solve_ode(
+                                pred_int[:, -1], theta2, state_labels, dim, integration_time=1/num_steps, dt=1/num_steps,
+                                n_future_steps=1, predict_normed=False, metadata={}
+                            )
+                            current_state = pred[:, -1]
+                    pred_test.append(pred)
+                    x_test_ = pred[:, -1]
+                
+                pred_test = torch.cat(pred_test, 1)
+                test_error = relative_l2_error(pred_test, y_test).item()
+                
+                print(
+                    f"Epoch [{epoch+1}/{epochs}] | "
+                    f"Loss: {loss.item():.6f} | "
+                    f"Rollout Error: {test_error:.6f}"
+                )
+    
+    print("Fine-tuning finished.")
+    
+    # Return final rollout error
+    with torch.no_grad():
+        model.eval()
+        theta1 = model.decode_theta(theta_latent1_opt, dim)
+        theta2 = model.decode_theta(theta_latent2_opt, dim)
+        
+        pred_test = []
+        x_test_ = x_test[:, -1].clone()
+        for _ in range(n_output_frames):
+            if composition_type == "sum":
+                pred, _ = model.solve_ode_with_2_operators(
+                    x_test_, theta1, theta2, state_labels, dim, 
+                    n_future_steps=1, integration_time=1, predict_normed=False, metadata={}
+                )
+            else:
+                current_state = x_test_
+                for _ in range(num_steps):
+                    pred_int, _ = model.solve_ode(
+                        current_state, theta1, state_labels, dim, 
+                        n_future_steps=1, integration_time=1/num_steps, dt=1/num_steps, predict_normed=False, metadata={}
+                    )
+                    pred, _ = model.solve_ode(
+                        pred_int[:, -1], theta2, state_labels, dim, 
+                        n_future_steps=1, integration_time=1/num_steps, dt=1/num_steps, predict_normed=False, metadata={}
+                    )
+                    current_state = pred[:, -1]
+            pred_test.append(pred)
+            x_test_ = pred[:, -1]
+        
+        pred_test = torch.cat(pred_test, 1)
+        final_error = relative_l2_error(pred_test, y_test).item()
+    
+    return final_error
+
+
 def get_data(
     model,
     advection_speeds = [0.6, 0.6, 1.2],
@@ -103,6 +277,8 @@ def get_data(
     fractal_degree=256,
     fractal_power=3.0,
     device="cuda",
+    epochs=500,
+    num_steps=1,
     ):
 
     relative_l2_error = RelativeL2()
@@ -164,7 +340,7 @@ def get_data(
             theta_latent, metadata= model.encode_theta_latent(inp, state_labels)
             # decode into 100k parameters
             theta = model.decode_theta(theta_latent, dim)
-            pred, metadata = model.solve_ode(inp[:, -1], theta, state_labels, dim, n_future_steps=n_output_frames, predict_normed=False, metadata=metadata)
+            pred, metadata = model.solve_ode(inp[:, -1], theta, state_labels, dim, n_future_steps=n_output_frames, integration_time=1, predict_normed=False, metadata=metadata)
 
         rollout_error = relative_l2_error(pred, target[:, :n_output_frames]).item()
         print(f"Error with encoder: {advection_speed:.3f}x{viscosity:.3f}", rollout_error)
@@ -174,6 +350,16 @@ def get_data(
         all_theta.append(theta)
         all_input.append(inp)
         all_target.append(target)
+    
+    # finetune the model with dual operators if we have multiple operators
+    if len(all_theta_latent) >= 2:
+        rollout_error = fine_tune_theta_latent(
+            model, all_theta_latent[0], all_theta_latent[1], inp, target[:, :n_output_frames], 
+            state_labels, dim, n_input_frames=n_input_frames, n_output_frames=n_output_frames, 
+            epochs=epochs, composition_type="composition", device=device, num_steps=num_steps
+        )
+        print(f"Error with finetune: {advection_speed:.3f}x{viscosity:.3f}", rollout_error)
+        all_errors.append(rollout_error)
 
     all_theta_latent = torch.stack(all_theta_latent)
     all_theta = torch.stack(all_theta)
@@ -184,7 +370,7 @@ def get_data(
     return all_theta_latent, all_theta, all_input, all_target, all_errors
 
 
-def run_tests(model, advection_range, diffusion_range, device, n_points=20, output_csv="composition_test_results.csv"):
+def run_tests(model, advection_range, diffusion_range, device, n_points=20, output_csv="composition_test_results.csv", num_steps=1):
     results = []
     # Define parameter ranges
 
@@ -193,13 +379,15 @@ def run_tests(model, advection_range, diffusion_range, device, n_points=20, outp
         viscosities = [0.0]
         advection_speeds = [adv1]
         all_theta_latent, all_theta, all_input, all_target, all_errors = get_data(
-            model, advection_speeds=advection_speeds, viscosities=viscosities, device=device
+            model, advection_speeds=advection_speeds, viscosities=viscosities, device=device, num_steps=num_steps
         )
         results.append({
             "scenario": "advection",
             "adv1": f"{adv1:.4f}",
             "visc1": f"{0.0:.4f}", 
             "error_encoder": all_errors[0],
+            "error_finetune": all_errors[1] if len(all_errors) > 1 else None,
+            "num_steps": num_steps,
         })
 
     # 2. Diffusion + Diffusion (advection=0)
@@ -207,13 +395,15 @@ def run_tests(model, advection_range, diffusion_range, device, n_points=20, outp
         advection_speeds = [0.0]
         viscosities = [visc1]
         all_theta_latent, all_theta, all_input, all_target, all_errors = get_data(
-            model, advection_speeds=advection_speeds, viscosities=viscosities, device=device
+            model, advection_speeds=advection_speeds, viscosities=viscosities, device=device, num_steps=num_steps
         )
         results.append({
             "scenario": "diffusion",
             "adv1": f"{0.0:.4f}",
             "visc1": f"{visc1:.4f}",
             "error_encoder": all_errors[0],
+            "error_finetune": all_errors[1] if len(all_errors) > 1 else None,
+            "num_steps": num_steps,
         })
 
     # 3. Advection + Diffusion
@@ -221,20 +411,22 @@ def run_tests(model, advection_range, diffusion_range, device, n_points=20, outp
         advection_speeds = [adv]
         viscosities = [visc]
         all_theta_latent, all_theta, all_input, all_target, all_errors = get_data(
-            model, advection_speeds=advection_speeds, viscosities=viscosities, device=device
+            model, advection_speeds=advection_speeds, viscosities=viscosities, device=device, num_steps=num_steps
         )
         results.append({
             "scenario": "advection+diffusion",
             "adv1": f"{adv:.4f}", 
-            "visc1": f"{visc1:.4f}",
-            "error_encoder": all_errors[0]
+            "visc1": f"{visc:.4f}",
+            "error_encoder": all_errors[0],
+            "error_finetune": all_errors[1] if len(all_errors) > 1 else None,
+            "num_steps": num_steps,
         })
 
     # Write results to CSV
     with open(output_csv, "w", newline="") as csvfile:
         fieldnames = [
             "scenario", "adv1", "visc1",
-            "error_encoder",
+            "error_encoder", "error_finetune", "num_steps",
         ]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
@@ -250,9 +442,12 @@ def main(cfg: DictConfig):
     device="cuda" if torch.cuda.is_available() else "cpu"
     dataset_name = cfg.test.dataset_name
     ckpt_time = cfg.test.ckpt_time
-    run_name = cfg.test.get('run_name', f"{dataset_name}_{cfg.test.setting}")
-    results_dir = f"{cfg.test.results_dir.rstrip('/')}/{dataset_name}/{run_name}"
-    os.makedirs(results_dir, exist_ok=True)
+    run_name = cfg.test.get('run_name', None)
+    if run_name is None:
+        raise ValueError("run_name is required but not found in config")
+    
+    output_dir = f"{cfg.test.results_dir}/{dataset_name}/{run_name}"
+    os.makedirs(output_dir, exist_ok=True)
     ckpt_path = cfg.test.ckpt_path
     print(f"Loading model from {ckpt_path}...")
     model = DISCOLitModule.load_from_checkpoint(ckpt_path, map_location=device)
@@ -267,17 +462,18 @@ def main(cfg: DictConfig):
     D_min, D_max = cfg.data.D_range
     advection_range_inter = np.exp(np.linspace(np.log(v_min), np.log(v_max), n_points))
     diffusion_range_inter = np.exp(np.linspace(np.log(D_min), np.log(D_max), n_points))
-    run_tests(model, advection_range_inter, diffusion_range_inter, device, n_points=n_points, output_csv=f"{results_dir}/inter_test_results_{n_points}.csv")
+    num_steps = cfg.test.get('num_steps', 1)
+    run_tests(model, advection_range_inter, diffusion_range_inter, device, n_points=n_points, output_csv=f"{output_dir}/inter_test_results_{n_points}.csv", num_steps=num_steps)
 
     # Extrapolation ranges (beyond training bounds)
     extra_factor = cfg.test.get('extrapolation_factor', 5.0)
     advection_range_extra_up = np.exp(np.linspace(np.log(v_max), np.log(v_max * extra_factor), n_points))
     diffusion_range_extra_up = np.exp(np.linspace(np.log(D_max), np.log(D_max * extra_factor), n_points))
-    run_tests(model, advection_range_extra_up, diffusion_range_extra_up, device, n_points=n_points, output_csv=f"{results_dir}/extra_up_test_results_{n_points}.csv")
+    run_tests(model, advection_range_extra_up, diffusion_range_extra_up, device, n_points=n_points, output_csv=f"{output_dir}/extra_up_test_results_{n_points}.csv", num_steps=num_steps)
 
     advection_range_extra_down = np.exp(np.linspace(np.log(v_min / extra_factor), np.log(v_min), n_points))
     diffusion_range_extra_down = np.exp(np.linspace(np.log(D_min / extra_factor), np.log(D_min), n_points))
-    run_tests(model, advection_range_extra_down, diffusion_range_extra_down, device, n_points=n_points, output_csv=f"{results_dir}/extra_down_test_results_{n_points}.csv")
+    run_tests(model, advection_range_extra_down, diffusion_range_extra_down, device, n_points=n_points, output_csv=f"{output_dir}/extra_down_test_results_{n_points}.csv", num_steps=num_steps)
 
 if __name__ == "__main__":
     main()

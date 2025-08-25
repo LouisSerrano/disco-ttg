@@ -5,8 +5,9 @@ training:
   lr: 5e-4
   weight_decay: 1e-4
   in_context: True
-  warmup_steps: 
+  warmup_steps: 1000 
   min_lr_ratio: 1e-3
+  noise_level: 0.001
 
 data:
   dataset_name: "advection-diffusion"
@@ -24,7 +25,7 @@ data:
   nx: 256
   nt: 100
   T: 10.0
-  fractal_power_range: [1.0, 8.0]
+  fractal_power_range: [1.0, 8.0] #8
   fractal_degree: 256
   v_range: [0.01, 1.0]
   D_range: [0.001, 1.0]
@@ -45,10 +46,13 @@ model:
   atol: 1e-6
   rtol: 1e-5 
   use_adjoint: False
+  solver: rk4
   decoder_use_bias: True
+  principled_initialization: False
 
 test:
   #ckpt_time: "2025-06-15/23-50-46"
+  run_name: 
   ckpt_time: "2025-06-15/23-50-46"
   ckpt_path: "outputs/${test.ckpt_time}/model_final.ckpt"
   #ckpt_path: "outputs/2025-06-15/23-46-48/model_final.ckpt"
@@ -57,5 +61,6 @@ test:
   setting: "dense"  # or "scarce"
   n_input: 16
   n_pred: 50
-  results_dir: "results/${test.ckpt_time}/"
+  results_dir: "/mnt/home/lserrano/disco-ball/results/"
   splits: ["train", "val", "test"]
+  num_steps: 1

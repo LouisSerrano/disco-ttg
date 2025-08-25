@@ -39,9 +39,12 @@ except ImportError:
 
 # Parameter grid for comprehensive testing
 PARAMETER_GRID = {
-    'advection_speeds': [1.0, 2.0, 4.0],
-    'viscosities': [0.05, 0.1],
-    'num_steps': [1, 2, 4, 8, 16, 32]
+    'advection_speeds': [5.0],
+    'viscosities': [0.1],
+    'num_steps': [1, 10],
+    #'advection_speeds': [1.0, 2.0, 4.0],
+    #'viscosities': [0.05, 0.1],
+    #'num_steps': [1, 2, 4, 8, 16, 32]
     #'advection_speeds': [1.0],
     #'viscosities': [0.05, 0.1],
     #'num_steps': [1, 2, 4, 8, 16, 32]
@@ -112,24 +115,43 @@ class NeuralSplittingTestSuite:
             if isinstance(data, np.ndarray) and len(data.shape) >= 2:
                 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
                 
+                # Handle 3D data by taking first few batch examples
+                if len(data.shape) == 3:
+                    plot_data = data[:, 0, :]  # Take first batch example
+                else:
+                    plot_data = data
+                
                 # Heatmap
-                im1 = ax1.imshow(data[:min(len(time_steps), data.shape[0])].T, 
+                im1 = ax1.imshow(plot_data[:min(len(time_steps), plot_data.shape[0])].T, 
                                aspect='auto', origin='lower', 
-                               extent=[0, min(len(time_steps), data.shape[0]) * dt, 0, self.L])
+                               extent=[0, min(len(time_steps), plot_data.shape[0]) * dt, 0, self.L])
                 ax1.set_xlabel('Time')
                 ax1.set_ylabel('Space (x)')
                 ax1.set_title(f'{method.replace("_", " ").title()} - Spatiotemporal Evolution')
                 plt.colorbar(im1, ax=ax1)
                 
                 # Line plots at different times
-                step = max(1, data.shape[0] // 5)
-                time_indices = np.arange(0, data.shape[0], step)
+                step = max(1, plot_data.shape[0] // 5)
+                time_indices = np.arange(0, plot_data.shape[0], step)
                 
                 for i, t_idx in enumerate(time_indices):
                     print('t_idx', t_idx)
-                    if t_idx < data.shape[0]:
+                    if t_idx < plot_data.shape[0]:
                         alpha = 0.4 + 0.6 * i / max(1, len(time_indices) - 1)
-                        ax2.plot(x, data[t_idx], alpha=alpha, 
+                        # Ensure we're plotting 1D spatial data
+                        spatial_data = plot_data[t_idx]
+                        if len(spatial_data.shape) > 1:
+                            spatial_data = spatial_data.flatten()
+                        # Match dimensions - take subset if needed
+                        if len(spatial_data) != len(x):
+                            if len(spatial_data) > len(x):
+                                spatial_data = spatial_data[:len(x)]
+                            else:
+                                # Interpolate to match x dimension
+                                x_data = np.linspace(0, self.L, len(spatial_data), endpoint=False)
+                                spatial_data_interp = np.interp(x, x_data, spatial_data)
+                                spatial_data = spatial_data_interp
+                        ax2.plot(x, spatial_data, alpha=alpha, 
                                label=f't = {t_idx}')
                 
                 ax2.set_xlabel('Space (x)')
@@ -720,10 +742,10 @@ def main():
     # Create test suite with parameterized values
     test_suite = NeuralSplittingTestSuite(
         nx=128, 
-        L=2*np.pi,
+        L=16,
         beta=args.beta,
         nu=args.nu,
-        results_dir='/mnt/home/lserrano/disco-ball/neural-operator-splitting/test_results'
+        results_dir='/mnt/home/lserrano/disco-ball/neural-operator-splitting/test_results_dopri5'
     )
     
     # Choose test type based on command line argument
@@ -741,21 +763,22 @@ def main():
         print("\\nRunning parameter grid evaluation...")
         
         # Base training configuration for parameter grid
-        test_dt=0.02
-        test_nt=50
+        test_dt=0.1 #0.02
+        test_nt=100
         base_train_config = {
             'nx': 128,
-            'L': 2*np.pi,
+            'L': 16, #2*np.pi,
             'hidden_dim': 128,
             'n_layers': 3,
-            'num_epochs': 100,
+            'num_epochs': 500,
             'batch_size': 64,
-            'training_size': 512,
+            'training_size': 1024,
             'learning_rate': 1e-3,
-            'method': 'rk4', #euler
             'verbose': True,
             'dt': test_dt,
-            'T': test_dt*test_nt
+            'T': test_dt*test_nt,
+            'method': 'dopri5', #euler
+            'use_adjoint': False
         }
         
         results = test_suite.run_parameter_grid_test(

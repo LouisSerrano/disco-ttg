@@ -1,16 +1,19 @@
 import torch
 import numpy as np
-from advection_diffusion import Fractaloid
-from train import DISCOLitModule, advection_diffusion_analytical
+from src.advection_diffusion import Fractaloid
+from train.train import DISCOLitModule, advection_diffusion_analytical
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from utils import RelativeL2
 from models import DISCOHouse
 import csv
-from itertools import product
+from itertools import product, combinations_with_replacement
 import os
+import random
+from torch.optim.lr_scheduler import CosineAnnealingLR
 import hydra
 from omegaconf import DictConfig
+import matplotlib.pyplot as plt
 
 class TemporalDatasetFixedCI(torch.utils.data.Dataset):
     def __init__(self, n_batches, batch_size, sub_x, sub_t, split="train", input_frames=16, output_frames=2,
@@ -85,6 +88,138 @@ class TemporalDatasetFixedCI(torch.utils.data.Dataset):
         return batch
     
 
+def fine_tune_theta_latent(model, theta_latent, x_test, y_test, state_labels, dim, 
+                           n_input_frames=16, n_output_frames=34, epochs=500, 
+                           composition_type="composition", device="cuda", 
+                           optimizer_type="adam", lr=1e-1, momentum=0.9, training_horizon=1, num_steps=1,
+                           advection_speed=0.0, diffusion_coeff=0.0, debug_dir="debug_predictions"):
+    """
+    Fine-tune theta latent parameters to minimize rollout error.
+    """
+    relative_l2_error = RelativeL2()
+    
+    # Initialize theta latent parameters for fine-tuning
+    theta_latent1 = torch.zeros_like(theta_latent.detach()).requires_grad_()
+    theta_latent2 = torch.zeros_like(theta_latent.detach()).requires_grad_()
+    
+    # Optimizer and scheduler
+    if optimizer_type.lower() == "sgd":
+        optimizer = torch.optim.SGD([theta_latent1, theta_latent2], lr=lr, weight_decay=0)
+    elif optimizer_type.lower() == "sgd_momentum":
+        optimizer = torch.optim.SGD([theta_latent1, theta_latent2], lr=lr, momentum=momentum, weight_decay=0)
+    elif optimizer_type.lower() == "adam":
+        optimizer = torch.optim.Adam([theta_latent1, theta_latent2], lr=lr, weight_decay=0)
+    else:
+        raise ValueError(f"Unknown optimizer type: {optimizer_type}")
+    
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    
+    print("Starting fine-tuning...")
+    
+    for epoch in tqdm(range(epochs), desc="Fine-tuning"):
+        model.train()
+        
+        # Random time step for training
+        t = random.randint(0, n_input_frames - training_horizon - 1)
+        
+        # Decode theta parameters
+        theta1 = model.decode_theta(theta_latent1, dim)
+        theta2 = model.decode_theta(theta_latent2, dim)
+        
+        # Forward pass with composition
+        pred = []
+        x_test_ = x_test[:, t].clone()
+        for _ in range(training_horizon):
+            current_state = x_test_
+            for _ in range(num_steps):
+                pred_int, _ = model.solve_ode(
+                    current_state, theta1, state_labels, dim, 
+                    n_future_steps=1, integration_time=1/num_steps, dt=1/num_steps, predict_normed=False, metadata={}
+                )
+                pred_, _ = model.solve_ode(
+                    pred_int[:, -1], theta2, state_labels, dim, 
+                    n_future_steps=1, integration_time=1/num_steps, dt=1/num_steps, predict_normed=False, metadata={}
+                )
+                current_state = pred_[:, -1]
+            
+            pred.append(current_state)
+            x_test_ = current_state
+        pred = torch.cat(pred, 1)
+        
+        # Calculate loss
+        loss = relative_l2_error(pred, x_test[:, t+1:t+training_horizon+1])
+        
+        # Backward pass
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        scheduler.step()
+        
+        # Print progress every 50 epochs
+        if (epoch + 1) % 50 == 0 or epoch == 0:
+            with torch.no_grad():
+                model.eval()
+                theta1 = model.decode_theta(theta_latent1, dim)
+                theta2 = model.decode_theta(theta_latent2, dim)
+                
+                # Evaluate on full trajectory
+                pred_test = []
+                x_test_ = x_test[:, -1].clone()
+                for _ in range(n_output_frames):
+                    current_state = x_test_
+                    for _ in range(num_steps):
+                        pred_int, _ = model.solve_ode(
+                            current_state, theta1, state_labels, dim, integration_time=1/num_steps, dt=1/num_steps,
+                            n_future_steps=1, predict_normed=False, metadata={}
+                        )
+                        pred, _ = model.solve_ode(
+                            pred_int[:, -1], theta2, state_labels, dim, integration_time=1/num_steps, dt=1/num_steps,
+                            n_future_steps=1, predict_normed=False, metadata={}
+                        )
+                        current_state = pred[:, -1]
+                    pred_test.append(pred)
+                    x_test_ = pred[:, -1]
+                
+                pred_test = torch.cat(pred_test, 1)
+                test_error = relative_l2_error(pred_test, y_test).item()
+                
+                print(
+                    f"Epoch [{epoch+1}/{epochs}] | "
+                    f"Loss: {loss.item():.6f} | "
+                    f"Rollout Error: {test_error:.6f}"
+                )
+    
+    print("Fine-tuning finished.")
+    
+    # Return final rollout error
+    with torch.no_grad():
+        model.eval()
+        theta1 = model.decode_theta(theta_latent1, dim)
+        theta2 = model.decode_theta(theta_latent2, dim)
+        
+        pred_test = []
+        x_test_ = x_test[:, -1].clone()
+        for _ in range(n_output_frames):
+            current_state = x_test_
+            for _ in range(num_steps):
+                pred_int, _ = model.solve_ode(
+                    current_state, theta1, state_labels, dim, 
+                    n_future_steps=1, integration_time=1/num_steps, dt=1/num_steps, predict_normed=False, metadata={}
+                )
+                pred, _ = model.solve_ode(
+                    pred_int[:, -1], theta2, state_labels, dim, 
+                    n_future_steps=1, integration_time=1/num_steps, dt=1/num_steps, predict_normed=False, metadata={}
+                )
+                current_state = pred[:, -1]
+            pred_test.append(pred)
+            x_test_ = pred[:, -1]
+        
+        pred_test = torch.cat(pred_test, 1)
+        final_error = relative_l2_error(pred_test, y_test).item()
+    
+    return final_error
+
+
 def get_data(
     model,
     advection_speeds = [0.6, 0.6, 1.2],
@@ -103,6 +238,8 @@ def get_data(
     fractal_degree=256,
     fractal_power=3.0,
     device="cuda",
+    epochs=500,
+    num_steps=1,
     ):
 
     relative_l2_error = RelativeL2()
@@ -164,7 +301,7 @@ def get_data(
             theta_latent, metadata= model.encode_theta_latent(inp, state_labels)
             # decode into 100k parameters
             theta = model.decode_theta(theta_latent, dim)
-            pred, metadata = model.solve_ode(inp[:, -1], theta, state_labels, dim, n_future_steps=n_output_frames, predict_normed=False, metadata=metadata)
+            pred, metadata = model.solve_ode(inp[:, -1], theta, state_labels, dim, n_future_steps=n_output_frames, integration_time=1, predict_normed=False, metadata=metadata)
 
         rollout_error = relative_l2_error(pred, target[:, :n_output_frames]).item()
         
@@ -179,18 +316,33 @@ def get_data(
     theta1 = all_theta[0]
     theta2 = all_theta[1]
     with torch.no_grad():
+        # Manual composition with num_steps integration
         pred = []
-        #pred, _ = model.solve_ode_with_2_operators(inp[:, -1], theta1, theta2, state_labels, dim, n_future_steps=n_output_frames, predict_normed=False, metadata=metadata)
+        x_test_ = inp[:, -1].clone()
         for _ in range(n_output_frames):
-            pred_int, metadata = model.solve_ode(inp[:, -1], theta1, state_labels, dim, n_future_steps=1, predict_normed=False, metadata=metadata)
-            inp, metadata = model.solve_ode(pred_int[:, -1], theta2, state_labels, dim, n_future_steps=1, predict_normed=False, metadata=metadata)
-            pred.append(inp[:, -1])
-        pred = torch.cat(pred, dim=1)
+            current_state = x_test_
+            for _ in range(num_steps):
+                pred_int, _ = model.solve_ode(
+                    current_state, theta1, state_labels, dim, 
+                    n_future_steps=1, integration_time=1/num_steps, dt=1/num_steps, predict_normed=False, metadata={}
+                )
+                pred_, _ = model.solve_ode(
+                    pred_int[:, -1], theta2, state_labels, dim, 
+                    n_future_steps=1, integration_time=1/num_steps, dt=1/num_steps, predict_normed=False, metadata={}
+                )
+                current_state = pred_[:, -1]
+            pred.append(current_state)
+            x_test_ = current_state
+        pred = torch.cat(pred, 1)
 
     rollout_error = relative_l2_error(pred, target[:, :n_output_frames]).item()
     print(f"Error with manual composition: {advection_speed:.3f}x{viscosity:.3f}", rollout_error)
-
     all_errors.append(rollout_error)
+    
+    # finetune the model
+    # rollout_error = fine_tune_theta_latent(model, theta_latent, inp, target[:, :n_output_frames], state_labels, dim, n_input_frames=n_input_frames, n_output_frames=n_output_frames, epochs=epochs, composition_type="composition", device=device, num_steps=num_steps)
+    # print(f"Error with finetune: {advection_speed:.3f}x{viscosity:.3f}", rollout_error)
+    # all_errors.append(rollout_error)
 
     all_theta_latent = torch.stack(all_theta_latent)
     all_theta = torch.stack(all_theta)
@@ -201,7 +353,7 @@ def get_data(
     return all_theta_latent, all_theta, all_input, all_target, all_errors
 
 
-def run_composition_tests(model, device, cfg, n_points=20, output_csv="composition_test_results.csv"):
+def run_composition_tests(model, device, cfg, n_points=20, output_csv="composition_test_results.csv", num_steps=1):
     results = []
     # Define parameter ranges from config
     v_min, v_max = cfg.data.v_range
@@ -210,12 +362,12 @@ def run_composition_tests(model, device, cfg, n_points=20, output_csv="compositi
     diffusion_range = np.exp(np.linspace(np.log(D_min), np.log(D_max), n_points))
 
     # 1. Advection + Advection (viscosity=0)
-    for adv1, adv2 in product(advection_range, repeat=2):
+    for adv1, adv2 in combinations_with_replacement(advection_range, 2):
         adv_sum = adv1 + adv2
         viscosities = [0.0, 0.0, 0.0]
         advection_speeds = [adv1, adv2, adv_sum]
         all_theta_latent, all_theta, all_input, all_target, all_errors = get_data(
-            model, advection_speeds=advection_speeds, viscosities=viscosities, device=device
+            model, advection_speeds=advection_speeds, viscosities=viscosities, device=device, num_steps=num_steps
         )
         results.append({
             "scenario": "advection+advection",
@@ -225,15 +377,16 @@ def run_composition_tests(model, device, cfg, n_points=20, output_csv="compositi
             "error_encoder2": all_errors[1],
             "error_encoder_composed": all_errors[2],
             "error_manual_composed": all_errors[3],
+            "num_steps": num_steps,
         })
 
     # 2. Diffusion + Diffusion (advection=0)
-    for visc1, visc2 in product(diffusion_range, repeat=2):
+    for visc1, visc2 in combinations_with_replacement(diffusion_range, 2):
         visc_sum = visc1 + visc2
         advection_speeds = [0.0, 0.0, 0.0]
         viscosities = [visc1, visc2, visc_sum]
         all_theta_latent, all_theta, all_input, all_target, all_errors = get_data(
-            model, advection_speeds=advection_speeds, viscosities=viscosities, device=device
+            model, advection_speeds=advection_speeds, viscosities=viscosities, device=device, num_steps=num_steps
         )
         results.append({
             "scenario": "diffusion+diffusion",
@@ -242,7 +395,8 @@ def run_composition_tests(model, device, cfg, n_points=20, output_csv="compositi
             "error_encoder1": all_errors[0],
             "error_encoder2": all_errors[1], 
             "error_encoder_composed": all_errors[2],
-            "error_manual_composed": all_errors[3]
+            "error_manual_composed": all_errors[3],
+            "num_steps": num_steps,
         })
 
     # 3. Advection + Diffusion
@@ -250,7 +404,7 @@ def run_composition_tests(model, device, cfg, n_points=20, output_csv="compositi
         advection_speeds = [adv, 0.0, adv]
         viscosities = [0.0, visc, visc]
         all_theta_latent, all_theta, all_input, all_target, all_errors = get_data(
-            model, advection_speeds=advection_speeds, viscosities=viscosities, device=device
+            model, advection_speeds=advection_speeds, viscosities=viscosities, device=device, num_steps=num_steps
         )
         results.append({
             "scenario": "advection+diffusion",
@@ -260,13 +414,14 @@ def run_composition_tests(model, device, cfg, n_points=20, output_csv="compositi
             "error_encoder2": all_errors[1],
             "error_encoder_composed": all_errors[2],
             "error_manual_composed": all_errors[3],
+            "num_steps": num_steps,
         })
 
     # Write results to CSV
     with open(output_csv, "w", newline="") as csvfile:
         fieldnames = [
             "scenario", "adv1", "adv2", "adv_sum", "visc1", "visc2", "visc_sum",
-            "error_encoder1", "error_encoder2", "error_encoder_composed", "error_manual_composed"
+            "error_encoder1", "error_encoder2", "error_encoder_composed", "error_manual_composed", "num_steps"
         ]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
@@ -282,9 +437,12 @@ def main(cfg: DictConfig):
     device="cuda" if torch.cuda.is_available() else "cpu"
     dataset_name = cfg.test.dataset_name
     ckpt_time = cfg.test.ckpt_time
-    run_name = cfg.test.get('run_name', f"{dataset_name}_{cfg.test.setting}")
-    results_dir = f"{cfg.test.results_dir.rstrip('/')}/{dataset_name}/{run_name}"
-    os.makedirs(results_dir, exist_ok=True)
+    run_name = cfg.test.get('run_name', None)
+    if run_name is None:
+        raise ValueError("run_name is required but not found in config")
+    
+    output_dir = f"{cfg.test.results_dir}/{dataset_name}/{run_name}"
+    os.makedirs(output_dir, exist_ok=True)
     ckpt_path = cfg.test.ckpt_path
     print(f"Loading model from {ckpt_path}...")
     model = DISCOLitModule.load_from_checkpoint(ckpt_path, map_location=device)
@@ -293,7 +451,8 @@ def main(cfg: DictConfig):
 
     # Run the composition grid tests and save to CSV
     n_points = cfg.test.get('n_points', 10)
-    run_composition_tests(model, device, cfg, n_points=n_points, output_csv=f"{results_dir}/composition_test_results_{n_points}.csv")
+    num_steps = cfg.test.get('num_steps', 1)
+    run_composition_tests(model, device, cfg, n_points=n_points, output_csv=f"{output_dir}/local_composition_test_results_{n_points}.csv", num_steps=num_steps)
 
 if __name__ == "__main__":
     main()

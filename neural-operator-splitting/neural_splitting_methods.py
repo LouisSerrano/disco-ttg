@@ -70,7 +70,8 @@ class NeuralOperatorSplitting:
                      rtol: float = 1e-7,
                      atol: float = 1e-9,
                      save_intermediate: bool = True,
-                     num_save_steps: int = None) -> List[np.ndarray]:
+                     num_save_steps: int = None,
+                     use_adjoint: bool = False) -> List[np.ndarray]:
         """
         First-order Lie splitting: A(dt) ∘ D(dt)
         Apply advection for full timestep, then diffusion for full timestep.
@@ -84,15 +85,20 @@ class NeuralOperatorSplitting:
             atol: Absolute tolerance
             save_intermediate: If True, save intermediate predictions at regular intervals
             num_save_steps: Number of intermediate steps to save (if None, saves every step)
+            use_adjoint: If True, use adjoint method for memory-efficient gradients
             
         Returns:
             List of solutions at each time step (or at save intervals if save_intermediate=True)
         """
-        if u0.ndim ==1:
-            u0[None, ...]
-        solutions = [u0.copy()]
-        u0 = u0[:, None]
-        u = torch.from_numpy(u0.copy()).float().to(self.device)  # (1, nx)
+        #if u0.ndim ==1:
+            #u0[None, ...]
+        if isinstance(u0, torch.Tensor):
+            solutions = [u0.squeeze(0).clone()]  # Store as (256,) not (1, 256)
+            u = u0.float().to(self.device)  # Already a tensor
+        else:
+            solutions = [u0.copy()]
+            u0 = u0[:, None]
+            u = torch.from_numpy(u0.copy()).float().to(self.device)  # (1, nx)
         print('------- Lie splitting --------')
         #print('u0', u.shape)
         
@@ -118,21 +124,24 @@ class NeuralOperatorSplitting:
                 # Use explicit t_span for operator splitting timesteps to maintain classical behavior
                 #print('u', u.shape)
                 t_span = torch.tensor([0.0, dt], device=self.device)
-                n_steps, u_after_advection = self.advection_model(u, t_span=t_span, method=method, rtol=rtol, atol=atol)
+                n_steps, u_after_advection = self.advection_model(u, t_span=t_span, method=method, rtol=rtol, atol=atol, use_adjoint=use_adjoint)
                 u = u_after_advection[-1]  # Take final time point
 
                 #print('u after advection', u_after_advection.shape)
                 
                 # Step 2: Apply diffusion operator for dt
-                n_steps, u_after_diffusion = self.diffusion_model(u, t_span=t_span, method=method, rtol=rtol, atol=atol)
+                n_steps, u_after_diffusion = self.diffusion_model(u, t_span=t_span, method=method, rtol=rtol, atol=atol, use_adjoint=use_adjoint)
                 u = u_after_diffusion[-1]  # Take final time point
 
                 #print('u after diffusion', u_after_diffusion.shape)
                 
                 # Save solution at specified intervals
                 if (n + 1) % save_every == 0 or n == nt - 1:  # Save at intervals or final step
-                    u_np = u.squeeze(0).squeeze(1).cpu().numpy()
-                    solutions.append(u_np.copy())
+                    if isinstance(u0, torch.Tensor):
+                        solutions.append(u.squeeze(0).clone())  # Shape (256,)
+                    else:
+                        u_np = u.squeeze(0).squeeze(1).cpu().numpy()
+                        solutions.append(u_np.copy())
                     #print('u_np', n, u_np.shape)
 
             #solutions = np.concatenate(solutions, axis=1)
@@ -148,7 +157,8 @@ class NeuralOperatorSplitting:
                         rtol: float = 1e-7,
                         atol: float = 1e-9,
                         save_intermediate: bool = False,
-                        num_save_steps: int = None) -> List[np.ndarray]:
+                        num_save_steps: int = None,
+                        use_adjoint: bool = False) -> List[np.ndarray]:
         """
         Second-order Strang splitting: D(dt/2) ∘ A(dt) ∘ D(dt/2)
         Apply diffusion for half timestep, advection for full timestep, 
@@ -163,12 +173,18 @@ class NeuralOperatorSplitting:
             atol: Absolute tolerance
             save_intermediate: If True, save intermediate predictions at regular intervals
             num_save_steps: Number of intermediate steps to save (if None, defaults to nt)
+            use_adjoint: If True, use adjoint method for memory-efficient gradients
             
         Returns:
             List of solutions at each time step (or at save intervals if save_intermediate=True)
         """
-        u = torch.from_numpy(u0.copy()).float().unsqueeze(0).to(self.device)  # (1, nx)
-        solutions = [u0.copy()]
+        if isinstance(u0, torch.Tensor):
+            solutions = [u0.squeeze(0).clone()]  # Store as (256,) not (1, 256)
+            u = u0.float().to(self.device)  # Already a tensor
+        else:
+            solutions = [u0.copy()]
+            u0 = u0[:, None]
+            u = torch.from_numpy(u0.copy()).float().to(self.device)  # (1, nx)
         
         # Set default num_save_steps to nt if not provided
         if num_save_steps is None:
@@ -187,21 +203,24 @@ class NeuralOperatorSplitting:
         with torch.no_grad():
             for n in range(nt):
                 # Step 1: Apply diffusion for dt/2
-                n_steps, u_after_diff1 = self.diffusion_model(u, t_span=t_span_half, method=method, rtol=rtol, atol=atol)
+                n_steps, u_after_diff1 = self.diffusion_model(u, t_span=t_span_half, method=method, rtol=rtol, atol=atol, use_adjoint=use_adjoint)
                 u = u_after_diff1[-1]
                 
                 # Step 2: Apply advection for dt
-                n_steps, u_after_advection = self.advection_model(u, t_span=t_span_full, method=method, rtol=rtol, atol=atol)
+                n_steps, u_after_advection = self.advection_model(u, t_span=t_span_full, method=method, rtol=rtol, atol=atol, use_adjoint=use_adjoint)
                 u = u_after_advection[-1]
                 
                 # Step 3: Apply diffusion for dt/2
-                n_steps, u_after_diff2 = self.diffusion_model(u, t_span=t_span_half, method=method, rtol=rtol, atol=atol)
+                n_steps, u_after_diff2 = self.diffusion_model(u, t_span=t_span_half, method=method, rtol=rtol, atol=atol, use_adjoint=use_adjoint)
                 u = u_after_diff2[-1]
                 
-                # Convert back to numpy and store (with save frequency logic)
-                u_np = u.squeeze(0).cpu().numpy()
-                if (n + 1) % save_every == 0 or n == nt - 1:
-                    solutions.append(u_np.copy())
+                # Save solution at specified intervals
+                if (n + 1) % save_every == 0 or n == nt - 1:  # Save at intervals or final step
+                    if isinstance(u0, torch.Tensor):
+                        solutions.append(u.squeeze(0).clone())  # Shape (256,)
+                    else:
+                        u_np = u.squeeze(0).squeeze(1).cpu().numpy()
+                        solutions.append(u_np.copy())
         
         return solutions
     
@@ -475,7 +494,7 @@ class ComparisonFramework:
                 error_metrics = compute_error_metrics(final_solution, final_gt)
                 errors[method_name] = error_metrics
                 
-                print(f"  {method_name}: L2 = {error_metrics['l2_error']:.2e}, "
+                print(f"  {method_name}: , Relative L2 = {error_metrics['relative_l2']:.2e}, L2 = {error_metrics['l2_error']:.2e}, "
                       f"L∞ = {error_metrics['linf_error']:.2e}")
             
             results['errors'] = errors

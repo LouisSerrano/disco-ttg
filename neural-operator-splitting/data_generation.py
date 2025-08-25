@@ -25,6 +25,9 @@ except ImportError:
     sys.path.insert(0, operator_splitting_path)
     from operator_splitting_1d import AdvectionDiffusion1DSolver
 
+# Import Fractaloid for aligned initial conditions
+from src.advection_diffusion import Fractaloid
+
 
 class TrajectoryGenerator:
     """Generate training trajectories for individual operators using FFT ground truth."""
@@ -401,54 +404,183 @@ class TrajectoryGenerator:
         return fig
 
 
-def generate_training_data(nx: int = 128,
-                          L: float = 2*np.pi,
+def advection_diffusion_analytical(u0, L=16.0, v=0.1, D=0.5, nt=100, T=10.0):
+    """
+    Compute the analytical solution of the 1D advection-diffusion equation
+    with periodic boundary conditions using the Fourier spectral method.
+
+    Parameters:
+        u0 (ndarray): Initial condition, array of shape (nx,)
+        L (float): Domain length
+        v (float): Advection speed
+        D (float): Diffusion coefficient
+        nt (int): Number of time steps
+        T (float): Final time
+
+    Returns:
+        u_xt (ndarray): Solution array of shape (nt, nx)
+        x (ndarray): Spatial grid of shape (nx,)
+        t (ndarray): Time grid of shape (nt,)
+    """
+    nx = len(u0)  # infer spatial resolution from input
+    x = np.linspace(0, L, nx, endpoint=False)
+    t = np.linspace(0, T, nt)
+
+    # Fourier wavenumbers
+    k = np.fft.fftfreq(nx, d=L / nx) * 2 * np.pi
+    k = 1j * k  # complex wavenumber for exponential form
+
+    # FFT of initial condition
+    u0_hat = np.fft.fft(u0)
+
+    # Allocate solution array
+    u_xt = np.zeros((nt, nx))
+
+    # Time evolution in spectral space
+    for i, ti in enumerate(t):
+        decay = np.exp(D * (k**2) * ti) * np.exp(-k * v * ti)
+        u_hat_t = u0_hat * decay
+        u_xt[i] = np.fft.ifft(u_hat_t).real  # keep only real part
+
+    return u_xt, x, t
+
+
+def generate_training_data(nx: int = 256,
+                          L: float = 16.0,
                           beta_values: Optional[List[float]] = None,
                           nu_values: Optional[List[float]] = None,
                           dt: float = 0.01,
-                          T: float = 1.0,
-                          n_initial_conditions: int = 5) -> Tuple[Dict, Dict, Dict]:
+                          T: float = 10.0,
+                          nt: int = 100,
+                          n_initial_conditions: int = 5,
+                          fractal_degree: int = 8,
+                          fractal_power_range: Tuple[float, float] = (1.5, 2.5)) -> Tuple[Dict, Dict, Dict]:
     """
-    Generate complete training dataset for neural operator splitting.
+    Generate complete training dataset for neural operator splitting using Fractaloid initial conditions
+    and analytical solutions, aligned with train/train.py approach.
     
     Args:
         nx: Number of spatial grid points
         L: Domain length
-        beta_values: Advection coefficients
-        nu_values: Diffusion coefficients
-        dt: Time step
+        beta_values: Advection coefficients (v in analytical solution)
+        nu_values: Diffusion coefficients (D in analytical solution)
+        dt: Time step (for compatibility, actual dt = T/nt)
         T: Final time
+        nt: Number of time steps
         n_initial_conditions: Number of initial conditions per parameter
+        fractal_degree: Degree for Fractaloid generation
+        fractal_power_range: Range for fractal power parameter
         
     Returns:
         Tuple of (advection_data, diffusion_data, combined_data)
     """
     if beta_values is None:
-        beta_values = [0.5]
+        beta_values = [1.0]  # Aligned with train/train.py range
     if nu_values is None:
-        nu_values = [0.1]
+        nu_values = [0.5]   # Aligned with train/train.py range
     
-    generator = TrajectoryGenerator(nx, L)
-    
-    # Generate multiple initial conditions
-    temp_solver = AdvectionDiffusion1DSolver(nx, L, 1.0, 1.0)  # Temporary solver for initial condition
+    # Generate multiple initial conditions using Fractaloid (same as train/train.py)
     initial_conditions = []
+    rng = np.random.default_rng()
+    
     for i in range(n_initial_conditions):
-        modes = np.random.choice([1, 2, 3, 4, 5, 6, 7, 8, 9, 10,11,12,14,15,16], size=6, replace=False)
-        amplitudes = np.random.uniform(0.3, 1.0, size=6)
-        u0 = temp_solver.initial_condition_complex_sines(modes.tolist(), amplitudes.tolist())
+        # Generate fractal power in specified range
+        fractal_power = rng.uniform(*fractal_power_range)
+        fractaloid = Fractaloid(
+            degree=fractal_degree,
+            power=fractal_power,
+            size=nx,
+            patch_size=nx
+        )
+        u0 = fractaloid.generate(batch_size=1, seed=None).squeeze(0).numpy()
+        # Normalize like in train/train.py
+        u0 = (u0 - u0.mean()) / (u0.std() + 1e-8)
         initial_conditions.append(u0)
     
-    # Generate individual operator trajectories with multiple initial conditions
-    advection_data = generator.generate_advection_trajectories_multiple_ic(
-        beta_values, initial_conditions, dt, T)
+    # Generate trajectories using analytical solution
+    advection_trajectories = []
+    advection_parameters = []
+    diffusion_trajectories = []
+    diffusion_parameters = []
+    combined_trajectories = []
+    combined_parameters = []
     
-    diffusion_data = generator.generate_diffusion_trajectories_multiple_ic(
-        nu_values, initial_conditions, dt, T)
+    # Time array
+    time_points = np.linspace(0, T, nt)
     
-    # Generate combined trajectories for comparison
-    combined_data = generator.generate_combined_trajectories_multiple_ic(
-        beta_values[:2], nu_values[:2], initial_conditions, dt, T)  # Smaller set for comparison
+    # Generate pure advection trajectories (D=0)
+    for beta in beta_values:
+        for u0 in initial_conditions:
+            u_xt, x, t = advection_diffusion_analytical(
+                u0, L=L, v=beta, D=0.0, nt=nt, T=T
+            )
+            advection_trajectories.append(u_xt)
+            advection_parameters.append({
+                'beta': beta,
+                'D': 0.0,
+                'type': 'advection'
+            })
+    
+    # Generate pure diffusion trajectories (v=0)
+    for nu in nu_values:
+        for u0 in initial_conditions:
+            u_xt, x, t = advection_diffusion_analytical(
+                u0, L=L, v=0.0, D=nu, nt=nt, T=T
+            )
+            diffusion_trajectories.append(u_xt)
+            diffusion_parameters.append({
+                'beta': 0.0,
+                'D': nu,
+                'type': 'diffusion'
+            })
+    
+    # Generate combined trajectories for comparison (first 2 values of each)
+    for beta in beta_values[:min(2, len(beta_values))]:
+        for nu in nu_values[:min(2, len(nu_values))]:
+            for u0 in initial_conditions:
+                u_xt, x, t = advection_diffusion_analytical(
+                    u0, L=L, v=beta, D=nu, nt=nt, T=T
+                )
+                combined_trajectories.append(u_xt)
+                combined_parameters.append({
+                    'beta': beta,
+                    'D': nu,
+                    'type': 'combined'
+                })
+    
+    # Create data dictionaries
+    x_grid = np.linspace(0, L, nx, endpoint=False)
+    metadata = {
+        'nx': nx,
+        'L': L,
+        'nt': nt,
+        'T': T,
+        'time': time_points,
+        'x': x_grid,
+        'dt': T / (nt - 1),
+        'dx': L / nx
+    }
+    
+    advection_data = {
+        'trajectories': advection_trajectories,
+        'parameters': advection_parameters,
+        'initial_conditions': initial_conditions,
+        'metadata': metadata
+    }
+    
+    diffusion_data = {
+        'trajectories': diffusion_trajectories,
+        'parameters': diffusion_parameters,
+        'initial_conditions': initial_conditions,
+        'metadata': metadata
+    }
+    
+    combined_data = {
+        'trajectories': combined_trajectories,
+        'parameters': combined_parameters,
+        'initial_conditions': initial_conditions,
+        'metadata': metadata
+    }
     
     print(f"\nData generation complete:")
     print(f"Advection trajectories: {len(advection_data['trajectories'])}")
