@@ -12,15 +12,15 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.nn.utils import parameters_to_vector
 from torch.func import functional_call, vmap
-from torchdiffeq import odeint, odeint_adjoint
+from ..torchdiffeq import odeint, odeint_adjoint
 
 #from src.utils import standardize
 #from src.models.tokenizer import Downsample, RMSGroupNorm
 #from src.models.attention import SpaceTimeBlock
 
-from utils import standardize
-from models.tokenizer import Downsample, RMSGroupNorm
-from models.attention import SpaceTimeBlock
+from ..utils.database import standardize
+from ..modules.tokenizer import Downsample, RMSGroupNorm
+from ..modules.attention import SpaceTimeBlock
 from typing import Optional
 
 def is_adaptive_solver(method: str) -> bool:
@@ -73,12 +73,7 @@ class SubsampledInLinear(nn.Module):
         label_size = len(labels)
         weight, bias = self.linear.weight, self.linear.bias
         scale = torch.tensor((dim_in / label_size) ** .5, dtype=x.dtype, device=x.device)
-        #print(f"weight {weight.shape}")
-        #print(f"labels {labels.shape}")
-        #print(f"bias {bias.shape}")
-        #print(f"x {x.shape}")
         x = scale * F.linear(x, weight[:, labels], bias)
-        #exit()
         return x
     
 
@@ -177,6 +172,8 @@ class Hypernetwork(nn.Module):
         x = rearrange(x, 'bt ... c -> bt c ...')
 
         # encode
+        #print('spatial_ndims', spatial_ndims)
+        #print('self.encoder', self.encoder.keys())
         x = x.squeeze((-2,-1))
         x = self.encoder[str(spatial_ndims)](x)
         x = rearrange(x, '(b t) c ... ->  b t c ...', b=B)
@@ -279,7 +276,7 @@ def create_frontier_mask(x):
 
 
 class OperatorNetwork(nn.Module):
-    def __init__(self, n_states, start, spatial_ndims, boundary_conditions, norm_groups, num_heads=0, updown_ksize=1):
+    def __init__(self, n_states, start, spatial_ndims, boundary_conditions, norm_groups, num_heads=0, updown_ksize=1, bottleneck_multiplier=2):
         super().__init__()
         self.n_states = n_states
         self.start = start
@@ -291,7 +288,13 @@ class OperatorNetwork(nn.Module):
 
         if boundary_conditions == 'periodic':
             padding_mode = 'circular'
-        else:
+        elif boundary_conditions == 'reflect':
+            padding_mode = 'reflect'
+        elif boundary_conditions == 'replicate':
+            padding_mode = 'replicate'
+        elif boundary_conditions == 'zeros':
+            padding_mode = 'zeros'
+        else:  # None or default
             padding_mode = 'reflect'
         self.add_mask = boundary_conditions != 'periodic'
         bc_offset = int(self.add_mask)
@@ -314,11 +317,12 @@ class OperatorNetwork(nn.Module):
             Up(spatial_ndims, start * 4, start * 2, norm_groups=norm_groups, padding_mode=padding_mode, groups=start*2),
             Up(spatial_ndims, start * 2, start * 1, norm_groups=norm_groups, padding_mode=padding_mode, groups=start*1),
         ])
+        bottleneck_channels = start * 16 * bottleneck_multiplier
         self.bottleneck = nn.Sequential(
-            make_conv(spatial_ndims, start * 16, start * 32, ksize=1, stride=1, padding=0, padding_mode=padding_mode, groups=1),
-            nn.GroupNorm(norm_groups, start * 32),
+            make_conv(spatial_ndims, start * 16, bottleneck_channels, ksize=1, stride=1, padding=0, padding_mode=padding_mode, groups=1),
+            nn.GroupNorm(norm_groups, bottleneck_channels),
             nn.GELU(),
-            make_conv(spatial_ndims, start * 32, start * 16, ksize=1, stride=1, padding=0, padding_mode=padding_mode, groups=1),
+            make_conv(spatial_ndims, bottleneck_channels, start * 16, ksize=1, stride=1, padding=0, padding_mode=padding_mode, groups=1),
         )
         self.convs_out = nn.Sequential(
             make_conv(spatial_ndims, start, start, ksize=3, stride=1, padding=1, padding_mode=padding_mode, groups=1),
@@ -414,12 +418,22 @@ class DISCOHouse(nn.Module):
         decoder_use_bias: bool = True,
         principled_initialization: bool = False,
         solver: str = "dopri5",
+        boundary_conditions: str = None,
+        opnn_channels: int = 8,
+        opnn_bottleneck_multiplier: int = 2,
+        default_integration_time: float = 1.0,
+        codebook_size: int = 512,
+        num_quantizers: int = 1,
     ):
         super().__init__()
         
         self.use_adjoint = use_adjoint
         self.principled_initialization = principled_initialization
         self.solver = solver
+        self.boundary_conditions = boundary_conditions
+        self.opnn_channels = opnn_channels
+        self.opnn_bottleneck_multiplier = opnn_bottleneck_multiplier
+        self.default_integration_time = default_integration_time
 
         # Hypernetwork (hpnn)
         self.hpnn = Hypernetwork(
@@ -437,7 +451,7 @@ class DISCOHouse(nn.Module):
 
         # Operator network (opnn)
         self.opnns = nn.ModuleDict({
-            str(dim): OperatorNetwork(n_states, 8, dim, boundary_conditions="None", norm_groups=4) # periodic
+            str(dim): OperatorNetwork(n_states, self.opnn_channels, dim, boundary_conditions=self.boundary_conditions, norm_groups=4, bottleneck_multiplier=self.opnn_bottleneck_multiplier)
             for dim in ndims
         })
         theta_norms = self.init_normalizations()
@@ -453,17 +467,14 @@ class DISCOHouse(nn.Module):
             nn.GELU(),
         )
         self.decoder_head = nn.ModuleDict({
-            dim: nn.Linear(hpnn_head_hidden_dim, numel, bias=decoder_use_bias) # for testing without biases
-            #dim: nn.Linear(hpnn_head_hidden_dim, numel) # for testing zero init
+            dim: nn.Linear(hpnn_head_hidden_dim, numel, bias=decoder_use_bias)
             for (dim, numel) in numel_opnn_parameters.items()
         })
 
-        zero_init=False
+        zero_init = False
         if decoder_use_bias and zero_init:
-            # let's try to set them to zero
             self.decoder_common[0].bias.data.fill_(0)
             self.decoder_common[2].bias.data.fill_(0)
-
             for (dim, numel) in numel_opnn_parameters.items():
                 self.decoder_head[dim].bias.data.fill_(0)
 
@@ -535,12 +546,14 @@ class DISCOHouse(nn.Module):
         return norms
         
     def encode_theta_latent(self, x: Tensor, state_labels: Tensor) -> Tensor:
-        """Encode input x and state_labels to produce theta_latent."""
+        """Encode input x and state_labels to produce theta_latent"""
         x_shape = x.shape
         B, T, C = x_shape[:3]
         spatial = x_shape[3:]
         dim = len(spatial)
-        state_labels = state_labels.unsqueeze(0).repeat(B, 1)
+        
+        if state_labels.ndim==1:
+            state_labels = state_labels.unsqueeze(0).repeat(B, 1)
 
         # preprocess
         spatial_dims = tuple(range(3,x.ndim))
@@ -551,8 +564,13 @@ class DISCOHouse(nn.Module):
         theta_latent = self.hpnn(x, state_labels[0])
         theta_latent = theta_latent.mean((1,3,4,5))  # average on t, x
         theta_latent = self.hpnn_projector(theta_latent)
+            
         return theta_latent, metadata
 
+    def get_codes_from_indices(self, indices: Tensor) -> Tensor:
+        """Get quantized codes from codebook indices."""
+        return self.quantizer.get_codes_from_indices(indices)
+    
     def decode_theta(self, theta_latent: Tensor, dim: int) -> Tensor:
         """Decode theta_latent to produce theta (operator parameters)."""
        # Decode the parameters
@@ -648,10 +666,23 @@ class DISCOHouse(nn.Module):
           
         return x, metadata
 
-    def solve_ode(self, x_input: Tensor, theta: Tensor, state_labels: Tensor, dim: int, integration_time: float, n_future_steps: int, predict_normed: bool, metadata: dict, dt: float = None, solver: Optional[str] = None) -> Tensor:
+    def solve_ode(self, x_input: Tensor, theta: Tensor, state_labels: Tensor, dim: int, integration_time: Optional[float] = None, n_future_steps: int = 1, predict_normed: bool = False, metadata: dict = None, dt: Optional[float] = None, solver: Optional[str] = None) -> Tensor:
         """Integrate the operator network using a neural ODE solver."""
         B=x_input.shape[0]
-        state_labels = state_labels.unsqueeze(0).repeat(B, 1)
+        if state_labels.ndim == 1:
+            state_labels = state_labels.unsqueeze(0).repeat(B, 1)
+        
+        # Use default integration time if not provided
+        if integration_time is None:
+            integration_time = self.default_integration_time
+        
+        # Compute dt if not provided
+        if dt is None:
+            dt = integration_time / self.max_steps
+        
+        # Initialize metadata if not provided
+        if metadata is None:
+            metadata = {}
 
         def functional_call_batches(model, parameter_vec_batch, x_batch, state_labels):
             param_dict = dict(model.named_parameters())
@@ -674,19 +705,19 @@ class DISCOHouse(nn.Module):
         current_solver = solver if solver is not None else self.solver
 
         if self.use_adjoint:
-            options = {'min_step': 1/self.max_steps}
+            options = {'min_step': dt}
             #dt = integration_time / n_future_steps
             #t = torch.arange(0, integration_time + dt, dt, device=x.device)
-            t = torch.linspace(0, integration_time, n_future_steps+1, device=x_input.device)
+            t = torch.linspace(0, integration_time*n_future_steps, n_future_steps+1, device=x_input.device)
             n_steps, x = odeint_adjoint(opnn, x_input, t=t, rtol=self.rtol, 
                                         method=current_solver, options=options, 
                                         adjoint_params=(theta,))
             x = x[1:,...]
         else:
-            options = {'step_size': 1/self.max_steps if dt is None else dt}
+            options = {'step_size': dt}
             #delta_t = integration_time / n_future_steps  # Same dt calculation
             #t = torch.arange(0, integration_time + delta_t, delta_t, device=x.device)  # Same time grid
-            t = torch.linspace(0, integration_time, n_future_steps+1, device=x_input.device)
+            t = torch.linspace(0, integration_time*n_future_steps, n_future_steps+1, device=x_input.device)
             n_steps, x = odeint(opnn, x_input, t=t, rtol=self.rtol, 
                                 method=current_solver, options=options)
             x = x[1:,...]
@@ -696,7 +727,13 @@ class DISCOHouse(nn.Module):
         if predict_normed:
             x = x * metadata['std'] + metadata['mean']
 
-        x = rearrange(x, 't b c h -> b t c h')
+        # Handle both 1D and 2D cases
+        if dim == 1:
+            x = rearrange(x, 't b c h -> b t c h')
+        elif dim == 2:
+            x = rearrange(x, 't b c h w -> b t c h w')
+        else:
+            raise ValueError(f"Unsupported spatial dimension: {dim}")
         return x, metadata
 
     def forward(self, 
@@ -704,10 +741,10 @@ class DISCOHouse(nn.Module):
         state_labels: Tensor, 
         predict_normed: bool = False,
         n_future_steps: int = 1,
-        integration_time: float = 1.0,
+        integration_time: Optional[float] = None,
         y: Optional[Tensor] = None,
         solver: Optional[str] = None,
-        dt: float = None,
+        dt: Optional[float] = None,
     ) -> Tensor:
         """ x is B T C H (W) (D) """
         x_shape = x.shape
@@ -715,6 +752,14 @@ class DISCOHouse(nn.Module):
         spatial = x_shape[3:]
         dim = len(spatial)
         state_labels = state_labels.unsqueeze(0).repeat(B, 1)
+        
+        # Use default integration time if not provided
+        if integration_time is None:
+            integration_time = self.default_integration_time
+        
+        # Compute dt if not provided
+        if dt is None:
+            dt = integration_time / self.max_steps
 
         # preprocess
         spatial_dims = tuple(range(3,x.ndim))
@@ -728,16 +773,8 @@ class DISCOHouse(nn.Module):
         else:
             T = 1
 
-        x, mean, std = standardize(x, dims=(1,*spatial_dims), return_stats=True)
-        metadata = {'mean': mean, 'std': std}  # b t c h w
-
-        # Keep as initial condition for the solver later
-        
-        # Estimate the PDE's intrisic parameters
-        theta_latent = self.hpnn(x, state_labels[0])
-        theta_latent = theta_latent.mean((1,3,4,5))  # average on t, x
-        theta_latent = self.hpnn_projector(theta_latent)
-
+        # Use encode_theta_latent which handles VQ
+        theta_latent, metadata = self.encode_theta_latent(x, state_labels)
         metadata['theta_latent'] = theta_latent
 
         # Decode the parameters
@@ -750,13 +787,17 @@ class DISCOHouse(nn.Module):
             def signed_sigmoid(x, factor=2.0):
                 return factor * (2 * torch.sigmoid(2 * x / factor) - 1)
             theta = theta_norm * signed_sigmoid(theta)
-        metadata['theta'] = theta
-        #if y is not None:
-        #    theta = theta[:, None].repeat(1, T, 1)
-        #     theta = rearrange(theta, 'b t c -> (b t) c')
 
-        #    state_labels = state_labels.unsqueeze(1).repeat(1, T, 1)
-        #    state_labels = rearrange(state_labels, 'b t c -> (b t) c')
+        metadata['theta'] = theta
+
+        if y is not None:
+            # factor is ratio of batch size
+            factor = x_input.shape[0]//x.shape[0] 
+            theta = theta[:, None].repeat(1, factor, 1)
+            theta = rearrange(theta, 'b t c -> (b t) c')
+
+            state_labels = state_labels.unsqueeze(1).repeat(1, factor, 1)
+            state_labels = rearrange(state_labels, 'b t c -> (b t) c')
         
         # Helper to batch computations
         def functional_call_batches(model, parameter_vec_batch, x_batch, state_labels): # nn.Module, B x dim_parameter, B x C x spatial, B x n_states
@@ -768,32 +809,32 @@ class DISCOHouse(nn.Module):
         def opnn(t, x):
             x = x.unsqueeze(1)
             x = functional_call_batches(self.opnns[str(dim)], theta, x, state_labels)
-            if x.isnan().any():
-                print(f"x is nan")
-                print(f"theta {theta}")
-                print(f"x {x}")
-                print(f"x_input {x_input}")
-                print(f"state_labels {state_labels}")
-                print(f"t {t}")
+            #if x.isnan().any():
+            #    print(f"x is nan")
+            #    print(f"theta {theta}")
+            #    print(f"x {x}")
+            #    print(f"x_input {x_input}")
+            #    print(f"state_labels {state_labels}")
+            #    print(f"t {t}")
             return x.squeeze(1)
         
         # Determine which solver to use (override or default)
         current_solver = solver if solver is not None else self.solver
 
         if self.use_adjoint:
-            options = {'min_step': 1/self.max_steps}
+            options = {'min_step': dt}
             #dt = integration_time / n_future_steps
             #t = torch.arange(0, integration_time + dt, dt, device=x.device)
-            t = torch.linspace(0, integration_time, n_future_steps+1, device=x.device)
+            t = torch.linspace(0, integration_time*n_future_steps, n_future_steps+1, device=x.device)
             n_steps, x = odeint_adjoint(opnn, x_input, t=t, rtol=self.rtol, 
                                         method=current_solver, options=options, 
                                         adjoint_params=(theta,))
             x = x[1:,...]
         else:
-            options = {'step_size': 1/self.max_steps if dt is None else dt}
+            options = {'step_size': dt}
             #delta_t = integration_time / n_future_steps  # Same dt calculation
             #t = torch.arange(0, integration_time + delta_t, delta_t, device=x.device)  # Same time grid
-            t = torch.linspace(0, integration_time, n_future_steps+1, device=x.device)
+            t = torch.linspace(0, integration_time*n_future_steps, n_future_steps+1, device=x.device)
             n_steps, x = odeint(opnn, x_input, t=t, rtol=self.rtol, 
                                 method=current_solver, options=options)
             x = x[1:,...]
@@ -809,7 +850,13 @@ class DISCOHouse(nn.Module):
         #    x = x.squeeze(2)
         #else:
         #    
-        x = rearrange(x, 't b c h -> b t c h')
+        # Handle both 1D and 2D cases
+        if dim == 1:
+            x = rearrange(x, 't b c h -> b t c h')
+        elif dim == 2:
+            x = rearrange(x, 't b c h w -> b t c h w')
+        else:
+            raise ValueError(f"Unsupported spatial dimension: {dim}")
         
         return x, metadata
 
@@ -833,6 +880,8 @@ class DISCOExpert(nn.Module):
         use_adjoint: bool = True,
         gating_log_scale: bool = False,
         solver: str = "dopri5",
+        opnn_channels: int = 32,
+        opnn_bottleneck_multiplier: int = 2,
     ):
         super().__init__()
         self.use_adjoint = use_adjoint
@@ -866,7 +915,7 @@ class DISCOExpert(nn.Module):
 
         self.opnns = nn.ModuleDict({
             str(dim):  nn.ModuleList([
-            OperatorNetwork(n_states, 32, dim, boundary_conditions="None", norm_groups=4) # 8 usually
+            OperatorNetwork(n_states, opnn_channels, dim, boundary_conditions=None, norm_groups=4, bottleneck_multiplier=opnn_bottleneck_multiplier)
             for _ in range(n_experts)
         ]) for dim in ndims
         })
@@ -880,6 +929,7 @@ class DISCOExpert(nn.Module):
         theta_latent = self.hpnn(x, state_labels[0])
         # Pool over time and space
         theta_latent = theta_latent.mean((1,3,4,5))  # average on t, x
+        # Note: DISCOExpert doesn't use VQ, just direct projection
         gating_logits = self.hpnn_projector(theta_latent)  # (B, n_experts)
 
         #while theta_latent.ndim > 2:
@@ -926,22 +976,18 @@ class DISCOExpert(nn.Module):
             return vmap(model, in_dims=(0, 0))(x_batch, state_labels)
 
         def expert_opnn(t, x):
-            #x = x.unsqueeze(1)  # (B, 1, ...)
-            #print(f"before expert x {x.shape}")
             expert_outputs = []
             for expert in self.opnns[str(dim)]:
                 out = expert(x, state_labels[0])
                 expert_outputs.append(out)
-            expert_outputs = torch.stack(expert_outputs, dim=-1)  # (..., n_experts)
-            #print(f"expert_outputs {expert_outputs.shape}")
+            expert_outputs = torch.stack(expert_outputs, dim=-1)
+            
             # Weighted sum over experts
-            weights = gating_weights.unsqueeze(1).unsqueeze(1)  # (B, 1, 1, n_experts)
-            #print(f"weights {weights.shape}")
+            weights = gating_weights.unsqueeze(1).unsqueeze(1)
             x = (expert_outputs * weights).sum(-1)
-            #print(f"after mult x {x.shape}")
             if x.isnan().any():
                 print(f"x is nan in expert_opnn")
-            return x #x.squeeze(1)
+            return x
 
         # Determine which solver to use (override or default)
         current_solver = solver if solver is not None else self.solver
@@ -986,16 +1032,6 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-    # 2D case
-    #print("2D case")
-    #x = torch.randn(8, 16, 4, 32, 32)
-    #state_labels = torch.tensor([0,1,2,3])
-    #out1, metadata = model(x, state_labels)
-
-    #print(out1.shape)
-    #print(metadata['n_steps'])
-    #print(metadata['theta_latent'].shape)
-    #print(metadata['theta'].shape)
 
     print("1D case")
     x = torch.randn(8, 16, 1, 256).cuda()

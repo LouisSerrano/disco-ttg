@@ -1,0 +1,78 @@
+training:
+  project: "disco-ball-vqvae"
+  max_steps: 10000
+  batch_size: 64
+  lr: 5e-4
+  weight_decay: 1e-4
+  in_context: False  # When True: use target_output (different trajectory), When False: use output (same trajectory)
+  in_context_progressive: False  # When True: gradually increase in-context probability from ~0 to ~1 during training
+  warmup_steps: 100
+  min_lr_ratio: 1e-3
+  noise_level: 0
+  num_workers: 4
+  prefetch_factor: 2
+  # New parameters for checkpoint loading and progressive steps
+  checkpoint_path: null  # Path to checkpoint file for resuming training
+  progressive_steps: False  # Enable progressive step refinement
+  step_schedule: [1, 2, 4, 8, 16]  # Steps schedule for progressive training
+  step_percentages: [0.8, 0.05, 0.05, 0.05, 0.05]  # Percentage of training for each step
+  curriculum_enabled: False
+  curriculum_start_frames: 1  # Start curriculum with 1 output frame
+  curriculum_end_frames: 16  # End curriculum with 16 output frames
+  curriculum_warmup_steps: 5000  # Number of steps for curriculum warmup (default: 50% of max_steps)
+  # VQ activation parameters
+
+data:
+  dataset_name: "combined-physics-hdf5"
+  # HDF5 file configuration - separate files for train/val/test
+  train_hdf5_files: 
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_train_8192.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_train_8192.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_train_8192.h5"
+  val_hdf5_files:
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_valid.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_valid.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_valid.h5"
+  test_hdf5_files:
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_test.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_test.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_test.h5"
+  # Legacy support - will be ignored if train_hdf5_files is present
+  hdf5_files: 
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_train_8192.h5"
+  output_dir: "/mnt/home/lserrano/disco-ball/outputs/"
+  sub_x: 1
+  sub_t: 1
+  n_input_frames: 16
+  n_output_frames: 16
+
+model:
+  n_states: 1
+  hidden_dim: 128
+  theta_dim: 2
+  patch_size: 8
+  ndims: [1]
+  groups: 1 
+  processor_blocks: 4
+  drop_path: 0.
+  num_heads: 4
+  bias_type: "rel"
+  hpnn_head_hidden_dim: 128
+  max_steps: 1
+  atol: 1e-6
+  rtol: 1e-5 
+  use_adjoint: False
+  solver: rk4
+  decoder_use_bias: True
+  principled_initialization: False
+  boundary_conditions: periodic  # Options: null, "periodic", "reflect", "replicate", "zeros"
+  opnn_channels: 8  # Base number of channels for OperatorNetwork (controls parameter count)
+  opnn_bottleneck_multiplier: 2  # Multiplier for bottleneck layer channels (default: 16*channels -> 32*channels)
+  default_integration_time: 0.015625  # Default total integration time
+  vae_beta: 0.01
+
+test:
+  dataset_name: "euler_hdf5"
+  results_dir: "/mnt/home/lserrano/disco-ball/results/"
+  splits: ["train", "val", "test"]
+  num_steps: 1

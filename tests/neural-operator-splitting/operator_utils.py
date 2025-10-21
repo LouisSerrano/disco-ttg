@@ -3,7 +3,7 @@ Operator utilities for neural operator splitting experiments.
 """
 
 import torch
-from torchdiffeq import odeint
+from src.torchdiffeq import odeint
 import os
 import sys
 
@@ -222,6 +222,142 @@ def strang_splitting_composition(x, state_labels, operator_indices, theta, model
     else:
         # Stack predictions: [n_future_steps, batch, channel, height]
         return torch.stack(predictions, dim=0)
+
+
+def naive_composition(x, state_labels, operator_indices, theta, model,
+                     integration_time=1.0, n_future_steps=1, solver='rk4', rtol=1e-7, idx_to_theta=None):
+    """
+    Naive composition: compose neural ODE functions BEFORE integration.
+    This creates f = f_n ∘ f_{n-1} ∘ ... ∘ f_1 and then integrates the composed function.
+    
+    WARNING: This approach is mathematically incorrect for operator splitting!
+    The composition of operators before integration does not preserve the 
+    underlying physics that operator splitting is designed to handle.
+    
+    Args:
+        x: input tensor
+        state_labels: state labels
+        operator_indices: list of operator indices to compose
+        theta: tensor of all operator parameters
+        model: DISCO model
+        integration_time: time step (1.0 = one Dt advance)
+        n_future_steps: number of future time steps
+        solver: ODE solver
+        rtol: relative tolerance
+        idx_to_theta: optional mapping from operator indices to theta indices
+    
+    Returns:
+        Tensor of shape [n_future_steps, batch, channel, height] for n_future_steps > 1,
+        or [batch, channel, height] for n_future_steps = 1
+    """
+    # Get all operators
+    operators = []
+    for op_idx in operator_indices:
+        if idx_to_theta is not None:
+            theta_idx = idx_to_theta[op_idx]
+            operator = get_batched_operators(theta[theta_idx:theta_idx+1], model, dim=1)
+        else:
+            operator = get_batched_operators(theta[op_idx:op_idx+1], model, dim=1)
+        operators.append(operator)
+    
+    # Define composed ODE function: f = f_n ∘ f_{n-1} ∘ ... ∘ f_1
+    def composed_ode_func(t, x_t):
+        # Start with the first operator's output
+        result = operators[0](x_t, state_labels).squeeze(0)
+        
+        # Compose subsequent operators
+        # Note: This is f_n(f_{n-1}(...f_1(x)...)) evaluated at x_t
+        # which is NOT the same as integrating operators sequentially!
+        for i in range(1, len(operators)):
+            # Each operator takes the derivative from the previous one
+            # This creates nested function evaluations
+            result = operators[i](x_t, state_labels).squeeze(0) + result
+        
+        return result
+    
+    # Time grid
+    t = torch.linspace(0, integration_time * n_future_steps, n_future_steps + 1, device=x.device)
+    
+    # Solve the composed ODE
+    nsteps, solution = odeint(composed_ode_func, x, t=t, rtol=rtol, method=solver)
+    
+    # Return future steps (excluding initial condition)
+    if n_future_steps == 1:
+        return solution[1, ...]
+    else:
+        return solution[1:, ...]
+
+
+def sequential_operator_composition_vectorized(x, state_labels, operator_indices_batch, theta, model, 
+                                              integration_time=1.0, n_future_steps=1, solver='rk4', 
+                                              rtol=1e-7, idx_to_theta=None, num_integration_steps=1):
+    """
+    Vectorized sequential operator composition using vmap.
+    
+    Args:
+        x: input tensor [batch_size, channels, height]
+        state_labels: state labels [num_states] or [batch_size, num_states]  
+        operator_indices_batch: tensor [B, N] - B different compositions, each length N
+        theta: tensor of all operator parameters
+        model: DISCO model
+        integration_time: time step (1.0 = one Dt advance)
+        n_future_steps: number of future time steps
+        solver: ODE solver
+        rtol: relative tolerance
+        idx_to_theta: optional mapping from operator indices to theta indices
+        num_integration_steps: number of sub-steps for finer dt integration
+        
+    Returns:
+        Tensor [B, batch_size, channels, height] or [B, n_future_steps, batch_size, channels, height]
+    """
+    from torch.func import vmap
+    
+    def apply_single_composition(operator_indices):
+        # Apply sequential_operator_composition to one composition
+        return sequential_operator_composition(
+            x, state_labels, operator_indices, theta, model,
+            integration_time, n_future_steps, solver, rtol, idx_to_theta, num_integration_steps
+        )
+    
+    # Use vmap to vectorize over the first dimension (B compositions)
+    # in_dims=(0,) means we vectorize over the 0th dimension of operator_indices_batch
+    return vmap(apply_single_composition, in_dims=(0,))(operator_indices_batch)
+
+
+def strang_splitting_composition_vectorized(x, state_labels, operator_indices_batch, theta, model,
+                                           integration_time=1.0, n_future_steps=1, solver='rk4',
+                                           rtol=1e-7, idx_to_theta=None, num_integration_steps=1):
+    """
+    Vectorized Strang splitting composition using vmap.
+    
+    Args:
+        x: input tensor [batch_size, channels, height]
+        state_labels: state labels [num_states] or [batch_size, num_states]
+        operator_indices_batch: tensor [B, N] - B different compositions, each length N
+        theta: tensor of all operator parameters
+        model: DISCO model
+        integration_time: time step (1.0 = one Dt advance)
+        n_future_steps: number of future time steps
+        solver: ODE solver
+        rtol: relative tolerance
+        idx_to_theta: optional mapping from operator indices to theta indices
+        num_integration_steps: number of sub-steps for finer dt integration
+        
+    Returns:
+        Tensor [B, batch_size, channels, height] or [B, n_future_steps, batch_size, channels, height]
+    """
+    from torch.func import vmap
+    
+    def apply_single_composition(operator_indices):
+        # Apply strang_splitting_composition to one composition
+        return strang_splitting_composition(
+            x, state_labels, operator_indices, theta, model,
+            integration_time, n_future_steps, solver, rtol, idx_to_theta, num_integration_steps
+        )
+    
+    # Use vmap to vectorize over the first dimension (B compositions)
+    # in_dims=(0,) means we vectorize over the 0th dimension of operator_indices_batch
+    return vmap(apply_single_composition, in_dims=(0,))(operator_indices_batch)
 
 
 def sparsify_weights(weights, ratio_threshold=0.1):

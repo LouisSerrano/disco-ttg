@@ -1,0 +1,45 @@
+# config file for Zebra
+
+
+defaults:
+  - _self_
+
+data:
+  dataset_name: "advection-diffusion"
+  setting: "scarce"
+  train_path: "/mnt/home/lserrano/disco-ball/datasets/train_${data.setting}.npz"
+  val_path: "/mnt/home/lserrano/disco-ball/datasets/val_${data.setting}.npz"
+  test_path: "/mnt/home/lserrano/disco-ball/datasets/test_${data.setting}.npz"
+  output_dir: "/mnt/home/lserrano/ceph/"
+  image_size: 256
+  channels: 1
+  saved_folder:
+  resume_training: False
+  checkpoint_path: #'/data/serrano/foundation-model/vqvae/wandering-planet-919/step=55000-rec_train_loss=0.000.ckpt'
+  n_input_frames: 16
+  n_output_frames: 1
+  # Dataset generation parameters
+  L: 16.0
+  nx: 256
+  nt: 100
+  T: 10.0
+  fractal_power_range: [1.0, 4.0] #[1.0, 4.0] #[1.0, 8.0] #8
+  fractal_degree: 256
+  v_range: [0.01, 1.0]
+  D_range: [0.001, 1.0]
+  sub_x: 1
+  sub_t: 1
+
+train:
+  project: "mpp"
+  learning_rate: 5e-4
+  batch_size: 64
+  max_steps: 100000
+  #hub_name: 'erbacher/burgers-revin-vq'
+  warmup_steps: 1000
+  precision: 32
+
+hydra:
+  run:
+    dir: "./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}"
+

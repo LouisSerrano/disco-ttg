@@ -1,0 +1,46 @@
+# config file for Zebra
+
+
+defaults:
+  - _self_
+
+data:
+  dataset_name: "combined-physics-hdf5"
+  # HDF5 file configuration - separate files for train/val/test
+  train_hdf5_files:
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_train_envsize64.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_train_envsize64.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_train_envsize64.h5"
+  val_hdf5_files:
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_valid.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_valid.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_valid.h5"
+  test_hdf5_files:
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_test.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_test.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_test.h5"
+  output_dir: "/mnt/home/lserrano/ceph/"
+  name: 'erbacher/PDEBench-1D'
+  n_input_frames: 16
+  n_output_frames: 1
+  sub_x: 1
+  sub_t: 1 
+  image_size: 256
+  channels: 1
+  saved_folder:
+  resume_training: False
+  checkpoint_path: #'/data/serrano/foundation-model/vqvae/wandering-planet-919/step=55000-rec_train_loss=0.000.ckpt'
+
+train:
+  project: "mpp"
+  learning_rate: 3e-4
+  batch_size: 64
+  max_steps: 100000
+  #hub_name: 'erbacher/burgers-revin-vq'
+  warmup_steps: 1000
+  precision: 32
+
+hydra:
+  run:
+    dir: "./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}"
+

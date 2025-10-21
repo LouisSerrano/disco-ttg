@@ -34,9 +34,9 @@ if project_root not in sys.path:
 
 # Import DISCO components
 from src.operators.disco import DISCOHouse, vectors_to_parameters
-from src.advection_diffusion import Fractaloid, FractaloidPhase
+from src.utils.advection_diffusion import Fractaloid, FractaloidPhase
 from train.train import DISCOLitModule, advection_diffusion_analytical
-from src.plot_dataset_samples import plot_prediction_vs_ground_truth
+from src.utils.plot_dataset_samples import plot_prediction_vs_ground_truth
 
 # Import results management
 from results_management import organize_results_by_parameters, save_results, convert_for_json

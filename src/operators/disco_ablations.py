@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.nn.utils import parameters_to_vector
 from torch.func import functional_call, vmap
-from torchdiffeq import odeint, odeint_adjoint
+from ..torchdiffeq import odeint, odeint_adjoint
 from functools import partial
 from timm.models.vision_transformer import Block
 
@@ -20,7 +20,7 @@ from timm.models.vision_transformer import Block
 #from src.models.tokenizer import Downsample, RMSGroupNorm
 #from src.models.attention import SpaceTimeBlock
 
-from ..utils import standardize
+from ..utils.database import standardize
 from ..modules.tokenizer import Downsample, RMSGroupNorm
 from ..modules.pos_embed import get_1d_sincos_pos_embed
 from ..modules.conditioned.oned_unet import Unet
@@ -518,6 +518,10 @@ class DiscoAblations(nn.Module):
         decoder_use_bias: bool = True,
         principled_initialization: bool = False,
         solver: str = "dopri5",
+        boundary_conditions: str = None,
+        opnn_channels: int = 8,
+        opnn_bottleneck_multiplier: int = 2,
+        default_integration_time: float = 1.0,
         use_standardization: bool = True,
     ):
         super().__init__()
@@ -525,6 +529,10 @@ class DiscoAblations(nn.Module):
         self.use_adjoint = use_adjoint
         self.principled_initialization = principled_initialization
         self.solver = solver
+        self.boundary_conditions = boundary_conditions
+        self.opnn_channels = opnn_channels
+        self.opnn_bottleneck_multiplier = opnn_bottleneck_multiplier
+        self.default_integration_time = default_integration_time
         self.use_standardization = use_standardization
 
         # Hypernetwork (hpnn) - now using DiscoEncoder
@@ -764,10 +772,22 @@ class DiscoAblations(nn.Module):
           
         return x, metadata
 
-    def solve_ode(self, x_input: Tensor, theta: Tensor, state_labels: Tensor, dim: int, integration_time: float, n_future_steps: int, predict_normed: bool, metadata: dict, dt: float = None, solver: Optional[str] = None) -> Tensor:
+    def solve_ode(self, x_input: Tensor, theta: Tensor, state_labels: Tensor, dim: int, integration_time: Optional[float] = None, n_future_steps: int = 1, predict_normed: bool = False, metadata: dict = None, dt: Optional[float] = None, solver: Optional[str] = None) -> Tensor:
         """Integrate the operator network using a neural ODE solver."""
         B=x_input.shape[0]
         state_labels = state_labels.unsqueeze(0).repeat(B, 1)
+        
+        # Use default integration time if not provided
+        if integration_time is None:
+            integration_time = self.default_integration_time
+        
+        # Compute dt if not provided
+        if dt is None:
+            dt = integration_time / self.max_steps
+        
+        # Initialize metadata if not provided
+        if metadata is None:
+            metadata = {}
 
         def functional_call_batches(model, parameter_vec_batch, x_batch, state_labels):
             param_dict = dict(model.named_parameters())
@@ -788,26 +808,21 @@ class DiscoAblations(nn.Module):
 
         # Determine which solver to use (override or default)
         current_solver = solver if solver is not None else self.solver
-        
-        options = {'min_step': 1/self.max_steps}
+
         if self.use_adjoint:
-            if dt is None:
-                dt = integration_time / n_future_steps
-            t = torch.arange(0, integration_time + dt, dt, device=x_input.device)
-            n_steps, x = odeint_adjoint(opnn, x_input, t=t, rtol=self.rtol, method=current_solver, options=options, adjoint_params=(theta,))
+            options = {'min_step': dt}
+            t = torch.linspace(0, integration_time*n_future_steps, n_future_steps+1, device=x_input.device)
+            n_steps, x = odeint_adjoint(opnn, x_input, t=t, rtol=self.rtol, 
+                                        method=current_solver, options=options, 
+                                        adjoint_params=(theta,))
             x = x[1:,...]
         else:
-            if dt is None:
-                dt = 1/self.max_steps
-            options['step_size'] = dt
-            t = torch.arange(0, integration_time + dt, dt, device=x_input.device)
-            n_steps, x = odeint(opnn, x_input, t=t, rtol=self.rtol, method=current_solver, options=options)
+            options = {'step_size': dt}
+            t = torch.linspace(0, integration_time*n_future_steps, n_future_steps+1, device=x_input.device)
+            n_steps, x = odeint(opnn, x_input, t=t, rtol=self.rtol, 
+                                method=current_solver, options=options)
             x = x[1:,...]
-            # Sample at the desired output times
-            output_dt = integration_time / n_future_steps
-            output_indices = [int(round(i * output_dt / dt)) for i in range(1, n_future_steps + 1)]
-            output_indices = [min(idx, len(x) - 1) for idx in output_indices]  # Clamp to valid range
-            x = x[output_indices]
+
         metadata['n_steps'] = n_steps
         
         if predict_normed:
@@ -821,9 +836,10 @@ class DiscoAblations(nn.Module):
         state_labels: Tensor, 
         predict_normed: bool = False,
         n_future_steps: int = 1,
-        integration_time: float = 1.0,
+        integration_time: Optional[float] = None,
         y: Optional[Tensor] = None,
         solver: Optional[str] = None,
+        dt: Optional[float] = None,
     ) -> Tensor:
         """ x is B T C H (W) (D) """
         x_shape = x.shape
@@ -831,11 +847,19 @@ class DiscoAblations(nn.Module):
         spatial = x_shape[3:]
         dim = len(spatial)
         state_labels = state_labels.unsqueeze(0).repeat(B, 1)
+        
+        # Use default integration time if not provided
+        if integration_time is None:
+            integration_time = self.default_integration_time
+        
+        # Compute dt if not provided
+        if dt is None:
+            dt = integration_time / self.max_steps
 
         # preprocess
         spatial_dims = tuple(range(3,x.ndim))
         x_input = x[:,-1,...]
-        
+
         if y is not None:
             #x_input = torch.cat([x_input[:, None], y[:, :-1]], dim=1)
             x_input = y[:, 0]
@@ -843,6 +867,8 @@ class DiscoAblations(nn.Module):
             #x_input = rearrange(x_input, 'b t c h -> (b t) c h')
         else:
             T = 1
+        
+        # Note: y handling is done later in the method
 
         if self.use_standardization:
             x, mean, std = standardize(x, dims=(1,*spatial_dims), return_stats=True)
@@ -871,13 +897,21 @@ class DiscoAblations(nn.Module):
             def signed_sigmoid(x, factor=2.0):
                 return factor * (2 * torch.sigmoid(2 * x / factor) - 1)
             theta = theta_norm * signed_sigmoid(theta)
-        metadata['theta'] = theta
-        #if y is not None:
-        #    theta = theta[:, None].repeat(1, T, 1)
-        #     theta = rearrange(theta, 'b t c -> (b t) c')
 
-        #    state_labels = state_labels.unsqueeze(1).repeat(1, T, 1)
-        #    state_labels = rearrange(state_labels, 'b t c -> (b t) c')
+        metadata['theta'] = theta
+
+        if y is not None:
+            # factor is ratio of batch size
+            factor = x_input.shape[0]//x.shape[0] 
+            #print('x_input.shape', x_input.shape)
+            #print('x.shape', x.shape)
+            #print('factor', factor)
+
+            theta = theta[:, None].repeat(1, factor, 1)
+            theta = rearrange(theta, 'b t c -> (b t) c')
+
+            state_labels = state_labels.unsqueeze(1).repeat(1, factor, 1)
+            state_labels = rearrange(state_labels, 'b t c -> (b t) c')
         
         # Helper to batch computations
         def functional_call_batches(model, parameter_vec_batch, x_batch, state_labels): # nn.Module, B x dim_parameter, B x C x spatial, B x n_states
@@ -889,51 +923,33 @@ class DiscoAblations(nn.Module):
         def opnn(t, x):
             x = x.unsqueeze(1)
             x = functional_call_batches(self.opnns[str(dim)], theta, x, state_labels)
-            if x.isnan().any():
-                print(f"x is nan")
-                print(f"theta {theta}")
-                print(f"x {x}")
-                print(f"x_input {x_input}")
-                print(f"state_labels {state_labels}")
-                print(f"t {t}")
             return x.squeeze(1)
         
         # Determine which solver to use (override or default)
         current_solver = solver if solver is not None else self.solver
-        
-        # Solve
-        options = {'min_step': 1/self.max_steps}        # print(f"theta std {theta.std():.3f}")
-        # print(f"x_input std {x_input.std():.3f}")
+
         if self.use_adjoint:
-            dt = integration_time / n_future_steps
-            t = torch.arange(0, integration_time + dt, dt, device=x.device)
-            n_steps, x = odeint_adjoint(opnn, x_input, t=t, rtol=self.rtol, method=current_solver, options=options, adjoint_params=(theta,))
+            options = {'min_step': dt}
+            t = torch.linspace(0, integration_time*n_future_steps, n_future_steps+1, device=x.device)
+            n_steps, x = odeint_adjoint(opnn, x_input, t=t, rtol=self.rtol, 
+                                        method=current_solver, options=options, 
+                                        adjoint_params=(theta,))
             x = x[1:,...]
         else:
-            dt = 1/self.max_steps
-            options['step_size'] = dt
-            t = torch.arange(0, integration_time + dt, dt, device=x.device)
-            n_steps, x = odeint(opnn, x_input, t=t, rtol=self.rtol, method=current_solver, options=options)
+            options = {'step_size': dt}
+            t = torch.linspace(0, integration_time*n_future_steps, n_future_steps+1, device=x.device)
+            n_steps, x = odeint(opnn, x_input, t=t, rtol=self.rtol, 
+                                method=current_solver, options=options)
             x = x[1:,...]
-            # Sample at the desired output times
-            output_dt = integration_time / n_future_steps
-            output_indices = [int(round(i * output_dt / dt)) for i in range(1, n_future_steps + 1)]
-            output_indices = [min(idx, len(x) - 1) for idx in output_indices]  # Clamp to valid range
-            x = x[output_indices]
+            #print('x.shape after odeint', x.shape)
 
         metadata['n_steps'] = n_steps
 
-        #x = x.unsqueeze(1)
         if predict_normed:
             x = x * metadata['std'] + metadata['mean']
 
-        #if y is not None:
-        #    x = rearrange(x, 'l b c h -> b l c h')
-       #     x = rearrange(x, '(b t) l c h -> b t l c h', t=T)
-        #    x = x.squeeze(2)
-        #else:
-        #    
         x = rearrange(x, 't b c h -> b t c h')
+        #print('x.shape end ', x.shape)
         
         return x, metadata
 
@@ -1262,11 +1278,16 @@ class DiscoAblationsUNet(nn.Module):
         state_labels: Tensor, 
         predict_normed: bool = False,
         n_future_steps: int = 1,
-        integration_time: float = 1.0,
+        integration_time: Optional[float] = None,
         y: Optional[Tensor] = None,
         solver: Optional[str] = None,
+        dt: Optional[float] = None,
     ) -> Tensor:
         """ x is B T C H (W) (D) """
+        # Use default integration time if not provided
+        if integration_time is None:
+            integration_time = self.default_integration_time
+            
         x_shape = x.shape
         B, T, C = x_shape[:3]
         spatial = x_shape[3:]

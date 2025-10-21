@@ -35,7 +35,7 @@ if project_root not in sys.path:
 # Import DISCO components
 from src.operators.disco import DISCOHouse, vectors_to_parameters
 from train.train import DISCOLitModule
-from src.plot_dataset_samples import plot_prediction_vs_ground_truth
+from src.utils.plot_dataset_samples import plot_prediction_vs_ground_truth
 
 # Import from our modular components (absolute imports to work when running directly)
 from data_generation import RelativeL2, TemporalBatchDatasetFly
@@ -333,7 +333,7 @@ class NeuralOperatorSplittingExperiment:
                     try:
                         pred = sequential_operator_composition(
                             x_val, state_labels, composition, theta, self.model,
-                            integration_time=1.0, n_future_steps=1,
+                            integration_time=self.config.get('integration_time', 1.0), n_future_steps=1,
                             num_integration_steps=self.config.get('num_integration_steps', 1)
                         )
                         error = self.relative_l2_error(pred, y_val).item()
@@ -546,7 +546,7 @@ class NeuralOperatorSplittingExperiment:
             for _ in range(training_horizon):
                 current = sequential_operator_composition(
                     current, state_labels, best_composition, current_theta, self.model,
-                    integration_time=1.0, n_future_steps=1, idx_to_theta=idx_to_theta,
+                    integration_time=self.config.get('integration_time', 1.0), n_future_steps=1, idx_to_theta=idx_to_theta,
                     num_integration_steps=self.config.get('num_integration_steps', 1)
                 )
                 pred_composition.append(current.unsqueeze(0))
@@ -653,7 +653,7 @@ class NeuralOperatorSplittingExperiment:
                 # Apply the full composition for this time step
                 current = sequential_operator_composition(
                     current, state_labels, best_composition, theta, self.model,
-                    integration_time=1.0, n_future_steps=1,
+                    integration_time=self.config.get('integration_time', 1.0), n_future_steps=1,
                     num_integration_steps=self.config.get('num_integration_steps', 1)
                 )
                 pred.append(current.unsqueeze(0))  # Add time dimension

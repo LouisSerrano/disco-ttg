@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import time
-from src.advection_diffusion import Fractaloid
+from src.utils.advection_diffusion import Fractaloid
 
 def generate_fractaloid_batch(batch_size, powers, degree, size, patch_size, rng=None, profile=False):
     """

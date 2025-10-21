@@ -1,0 +1,72 @@
+defaults:
+  - _self_
+  - data: null
+  - optim: null
+  - inr: null
+  - wandb: null
+
+data:
+  dataset_name: "advection-diffusion"
+  setting: "scarce"
+  train_path: "/mnt/home/lserrano/disco-ball/datasets/train_${data.setting}.npz"
+  val_path: "/mnt/home/lserrano/disco-ball/datasets/val_${data.setting}.npz"
+  test_path: "/mnt/home/lserrano/disco-ball/datasets/test_${data.setting}.npz"
+  output_dir: "/mnt/home/lserrano/ceph/geps/"
+  sub_x: 1
+  sub_t: 1
+  n_input_frames: 1
+  n_output_frames: 1
+  # Dataset generation parameters
+  L: 16.0
+  nx: 256
+  nt: 100
+  T: 10.0
+  fractal_power_range: [1.0, 4.0] #[1.0, 4.0] #[1.0, 8.0] #8
+  fractal_degree: 256
+  v_range: [0.01, 1.0]
+  D_range: [0.001, 1.0]
+
+train:
+  max_steps: 100000
+  batch_size: 128
+  batch_size_val: 32
+  lr: 0.001
+  init_type: 'default'
+  init_gain: 0.15
+  regul:
+
+model:
+  dataset_name: advection-diffusion
+  num_env: 200
+  hidden_c: 64
+  state_c: 1
+  code_c: 2
+  method: 'rk4'
+  factor: 1
+  is_complete: False
+  type_augment: 
+  options:
+  teacher_forcing_init: 0.99
+  teacher_forcing_decay: 0.99
+  teacher_forcing_update: 10
+  default_integration_time: 0.1
+  init_type:
+    A:
+      type: orthogonal
+      gain: 1
+    B:
+      type: orthogonal
+      gain: 1
+    weight:
+      type: orthogonal
+      gain: 1
+
+wandb:
+  entity: "xxx"
+  project: "xxx"
+  name: 
+  id: 
+  dir:
+  sweep_id:
+  saved_checkpoint : False
+  checkpoint_path :

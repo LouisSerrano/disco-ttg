@@ -15,7 +15,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from src.advection_diffusion import FractaloidPhase
+from src.utils.advection_diffusion import FractaloidPhase
 from train.train import advection_diffusion_analytical
 
 

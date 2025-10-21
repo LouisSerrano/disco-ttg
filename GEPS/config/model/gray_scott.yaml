@@ -1,0 +1,74 @@
+defaults:
+  - _self_
+  - data: null
+  - optim: null
+  - inr: null
+  - wandb: null
+
+data:
+  dataset_name: "rd"
+  # HDF5 file configuration - separate files for train/val/test
+  train_hdf5_files:
+    - "/mnt/home/lserrano/gray-scott-python/data/feed_20params_512traj_each.hdf5"
+    - "/mnt/home/lserrano/gray-scott-python/data/kill_20params_512traj_each.hdf5"
+  val_hdf5_files:
+    - "/mnt/home/lserrano/gray-scott-python/data/val_feed_20params_8traj_each.hdf5"
+    - "/mnt/home/lserrano/gray-scott-python/data/val_kill_20params_8traj_each.hdf5"
+  test_hdf5_files:
+    - "/mnt/home/lserrano/gray-scott-python/data/val_feed_20params_8traj_each.hdf5"
+    - "/mnt/home/lserrano/gray-scott-python/data/val_kill_20params_8traj_each.hdf5"
+  output_dir: "/mnt/home/lserrano/ceph/geps/"
+  n_input_frames: 1
+  n_output_frames: 1
+  sub_x: 1
+  sub_t: 1 
+  image_size: 256
+  channels: 1
+  saved_folder:
+  resume_training: False
+  checkpoint_path:
+
+train:
+  max_steps: 100000
+  batch_size: 32
+  batch_size_val: 32
+  lr: 0.001
+  init_type: 'default'
+  init_gain: 0.15
+  regul:
+
+model:
+  dataset_name: gray-scott
+  num_env: 40
+  hidden_c: 64
+  state_c: 2
+  code_c: 2
+  method: 'rk4'
+  factor: 1
+  is_complete: False
+  type_augment: 
+  options:
+  teacher_forcing_init: 0.99
+  teacher_forcing_decay: 0.99
+  teacher_forcing_update: 10
+  default_integration_time: 0.1
+  init_type:
+    A:
+      type: orthogonal
+      gain: 1
+    B:
+      type: orthogonal
+      gain: 1
+    weight:
+      type: orthogonal
+      gain: 1
+
+wandb:
+  entity: "xxx"
+  project: "xxx"
+  name: 
+  id: 
+  dir:
+  sweep_id:
+  saved_checkpoint : False
+  checkpoint_path :

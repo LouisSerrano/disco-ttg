@@ -1,10 +1,10 @@
 import torch
 import numpy as np
-from src.advection_diffusion import Fractaloid
+from src.utils.advection_diffusion import Fractaloid
 from train.train import DISCOLitModule, advection_diffusion_analytical
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from src.utils import RelativeL2
+from src.utils.database import RelativeL2
 from src.operators.disco import DISCOHouse
 import csv
 from itertools import product, combinations_with_replacement

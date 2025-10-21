@@ -6,12 +6,12 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset, IterableDataset
 from torch.optim.lr_scheduler import _LRScheduler
 import wandb
-from src.disco_operator import DiscoOperator, disco_operator_mini
+from src.operators.disco_operator import DiscoOperator, disco_operator_mini
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
-from src.utils import RelativeL2
-from src.advection_diffusion import Fractaloid, AdvectionDiffusionExplicit
+from src.utils.database import RelativeL2
+from src.utils.advection_diffusion import Fractaloid, AdvectionDiffusionExplicit
 import random
 import math
 from einops import rearrange

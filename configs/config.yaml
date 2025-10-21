@@ -7,7 +7,7 @@ training:
   in_context: True
   warmup_steps: 1000 
   min_lr_ratio: 1e-3
-  noise_level: 0.001
+  noise_level: 0 #0.001
 
 data:
   dataset_name: "advection-diffusion"
@@ -25,7 +25,7 @@ data:
   nx: 256
   nt: 100
   T: 10.0
-  fractal_power_range: [1.0, 8.0] #8
+  fractal_power_range: [1.0, 4.0] #[1.0, 4.0] #[1.0, 8.0] #8
   fractal_degree: 256
   v_range: [0.01, 1.0]
   D_range: [0.001, 1.0]
@@ -34,7 +34,7 @@ model:
   n_states: 1
   hidden_dim: 128
   theta_dim: 2
-  patch_size: 8
+  patch_size: 16 #8
   ndims: [1]
   groups: 1 
   processor_blocks: 4
@@ -42,13 +42,17 @@ model:
   num_heads: 4
   bias_type: "rel"
   hpnn_head_hidden_dim: 128
-  max_steps: 10
+  max_steps: 1
   atol: 1e-6
   rtol: 1e-5 
   use_adjoint: False
   solver: rk4
   decoder_use_bias: True
   principled_initialization: False
+  boundary_conditions: periodic  # Options: null, "periodic", "reflect", "replicate", "zeros"
+  opnn_channels: 8  # Base number of channels for OperatorNetwork (controls parameter count)
+  opnn_bottleneck_multiplier: 2  # Multiplier for bottleneck layer channels (default: 16*channels -> 32*channels)
+  default_integration_time: 0.1  # Default total integration time
 
 test:
   #ckpt_time: "2025-06-15/23-50-46"

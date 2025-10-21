@@ -1,0 +1,56 @@
+# config file for Zebra
+
+
+defaults:
+  - _self_
+
+data:
+  dataset_name: "rd"
+  # HDF5 file configuration - separate files for train/val/test
+  train_hdf5_files:
+    - "/mnt/home/lserrano/gray-scott-python/data/feed_20params_512traj_each.hdf5"
+    - "/mnt/home/lserrano/gray-scott-python/data/kill_20params_512traj_each.hdf5"
+  val_hdf5_files:
+    - "/mnt/home/lserrano/gray-scott-python/data/val_feed_20params_8traj_each.hdf5"
+    - "/mnt/home/lserrano/gray-scott-python/data/val_kill_20params_8traj_each.hdf5"
+  test_hdf5_files:
+    - "/mnt/home/lserrano/gray-scott-python/data/val_feed_20params_8traj_each.hdf5"
+    - "/mnt/home/lserrano/gray-scott-python/data/val_kill_20params_8traj_each.hdf5"
+  output_dir: "/mnt/home/lserrano/ceph/"
+  n_input_frames: 16
+  n_output_frames: 1
+  sub_x: 1
+  sub_t: 1 
+  image_size: 256
+  channels: 1
+  saved_folder:
+  resume_training: False
+  checkpoint_path: #'/data/serrano/foundation-model/vqvae/wandering-planet-919/step=55000-rec_train_loss=0.000.ckpt'
+
+train:
+  project: "mpp"
+  learning_rate: 2e-4
+  batch_size: 16
+  max_steps: 300000
+  output_dir : "/mnt/home/lserrano/ceph/"
+  warmup_steps: 1000
+  precision: 32
+
+model:
+  patch_size: 16
+  embed_dim: 384
+  processor_blocks: True
+  n_states: 2
+  num_heads: 8
+  block_type: "axial"
+  space_type: "axial_attention"
+  bias_type: "rel"
+  time_type: "attention"
+  gradient_checkpointing: False
+  
+
+
+hydra:
+  run:
+    dir: "./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}"
+

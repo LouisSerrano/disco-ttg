@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from einops import rearrange
 
 #from src.models.attention import RMSGroupNorm
-from models.attention import RMSGroupNorm
+from .attention import RMSGroupNorm
 
 class Tokenizer(nn.Module, ABC):
     

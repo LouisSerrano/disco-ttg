@@ -263,11 +263,16 @@ def main():
     parser.add_argument('--num-operators', type=int, default=10, help='Number of operators to encode')
     parser.add_argument('--n-trajectories-per-operator', type=int, default=1, help='Number of trajectories per operator')
     
+    # Dataset parameters
+    parser.add_argument('--dataset', type=str, choices=['advection-diffusion', 'combined'], default='advection-diffusion',
+                       help='Dataset type (determines default integration time)')
+    
     # Optimization parameters
     parser.add_argument('--rel-loss-coeff', type=float, default=1, help='Relative L2 loss coefficient')
     parser.add_argument('--sparsity-coeff', type=float, default=0.01, help='Sparsity coefficient')
     parser.add_argument('--max-operators', type=int, default=5, help='Maximum operators in composition')
     parser.add_argument('--num-integration-steps', type=int, default=1, help='Number of integration steps')
+    parser.add_argument('--integration-time', type=float, default=None, help='Integration time step (overrides dataset default)')
     
     # Finetuning parameters
     parser.add_argument('--enable-finetuning', action='store_true', default=True, help='Enable finetuning')
@@ -290,6 +295,15 @@ def main():
     
     args = parser.parse_args()
     
+    # Set dataset-dependent defaults
+    if args.integration_time is None:
+        if args.dataset == 'advection-diffusion':
+            args.integration_time = 0.1
+        elif args.dataset == 'combined':
+            args.integration_time = 4.0 / 256.0
+        else:
+            args.integration_time = 1.0  # fallback default
+    
     # Set random seeds
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -298,11 +312,13 @@ def main():
     # Create configuration
     config = {
         'checkpoint_path': args.checkpoint_path,
+        'dataset': args.dataset,
         'num_operators': args.num_operators,
         'rel_loss_2_coeff': args.rel_loss_coeff,
         'sparsity_coeff': args.sparsity_coeff,
         'max_operators': args.max_operators,
         'num_integration_steps': args.num_integration_steps,
+        'integration_time': args.integration_time,
         'enable_finetuning': args.enable_finetuning,
         'optimize_latent': args.optimize_latent,
         'finetune_epochs': args.finetune_epochs,

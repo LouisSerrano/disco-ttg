@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import os
 from src.operators.disco import DISCOHouse
 from train import DISCOLitModule
-from src.utils import RelativeL2
+from src.utils.database import RelativeL2
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from functools import reduce

@@ -10,7 +10,7 @@ from src.operators.disco import DISCOHouse
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
-from src.utils import RelativeL2
+from src.utils.database import RelativeL2
 import h5py
 import time
 import random

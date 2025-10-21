@@ -10,8 +10,9 @@ from src.operators.disco import DISCOHouse
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
-from src.utils import RelativeL2
-from src.advection_diffusion import Fractaloid, FractaloidPhase, AdvectionDiffusionExplicit
+from einops import rearrange
+from src.utils.database import RelativeL2
+from src.utils.advection_diffusion import Fractaloid, FractaloidPhase, AdvectionDiffusionExplicit
 import random
 import math
 
@@ -187,6 +188,8 @@ class TemporalBatchDatasetFly(IterableDataset):
             batch_targets = []
             batch_context_inputs = []
             batch_context_targets = []
+            batch_advection_speed = []
+            batch_diffusion = []
             for _ in range(self.batch_size):
                 # Sample advection speed and viscosity
                 if self.split == 'train':
@@ -199,6 +202,10 @@ class TemporalBatchDatasetFly(IterableDataset):
                 else:
                     v = self.rng.uniform(*self.v_range) if isinstance(self.v_range, (tuple, list)) else float(self.v_range)
                     D = self.rng.uniform(*self.D_range) if isinstance(self.D_range, (tuple, list)) else float(self.D_range)
+
+                batch_advection_speed.append(v)
+                batch_diffusion.append(D)
+
                 # Generate fractaloid initial condition
                 fractal_power = self.rng.uniform(*self.fractal_power_range) if isinstance(self.fractal_power_range, (tuple, list)) else float(self.fractal_power_range)
                 fractaloid = FractaloidPhase(
@@ -261,6 +268,8 @@ class TemporalBatchDatasetFly(IterableDataset):
                 'target': torch.stack(batch_targets),
                 'context_input': torch.stack(batch_context_inputs),
                 'context_target': torch.stack(batch_context_targets),
+                'advection_speed': batch_advection_speed,
+                'diffusion': batch_diffusion,
             }
             yield batch
 
@@ -295,16 +304,19 @@ class DISCOLitModule(L.LightningModule):
         target = batch['target'] 
 
         # Add Gaussian noise to first timestamp during training if noise_level is set
-        if hasattr(self, 'noise_level') and self.noise_level is not None:
-            target[:, 0, ...] += torch.randn_like(target[:, 0, ...]) * self.noise_level
+        #if hasattr(self, 'noise_level') and self.noise_level is not None:
+        #    target[:, 0, ...] += torch.randn_like(target[:, 0, ...]) * self.noise_level
+
+        target_inp = rearrange(target[:, :-1], 'b t c h -> (b t) 1 c h')
+        target_out = rearrange(target[:, 1:], 'b t c h -> (b t) 1 c h')
 
         #input, target = batch
         state_labels = torch.tensor([0], device=input.device)
         optimizer = self.optimizers()
         scheduler = self.lr_schedulers()
         optimizer.zero_grad()
-        y_pred, metadata = self.model(input, state_labels, y=target, n_future_steps=target.shape[1]-1, integration_time=target.shape[1]-1)
-        loss = self.loss_fn(y_pred, target[:,1:])
+        y_pred, metadata = self.model(input, state_labels, y=target_inp, n_future_steps=1) #target.shape[1]-1, integration_time=target.shape[1]-1)
+        loss = self.loss_fn(y_pred, target_out)
         self.manual_backward(loss)
         
         # Safe gradient monitoring and clipping
@@ -328,9 +340,12 @@ class DISCOLitModule(L.LightningModule):
         input = batch['input']
         target = batch['target']
         state_labels = torch.tensor([0], device=input.device)
-        y_pred, metadata = self.model(input, state_labels, y=target, n_future_steps=target.shape[1]-1, integration_time=target.shape[1]-1)
+        target_inp = rearrange(target[:, :-1], 'b t c h -> (b t) 1 c h')
+        target_out = rearrange(target[:, 1:], 'b t c h -> (b t) 1 c h')
 
-        loss = self.loss_fn(y_pred, target[:,1:])
+        y_pred, metadata = self.model(input, state_labels, y=target_inp, n_future_steps=1) #target.shape[1]-1, integration_time=target.shape[1]-1)
+
+        loss = self.loss_fn(y_pred, target_out)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 

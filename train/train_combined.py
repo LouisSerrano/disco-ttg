@@ -10,11 +10,13 @@ from src.operators.disco import DISCOHouse
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
-from src.utils import RelativeL2
+from src.utils.database import RelativeL2
 import h5py
 import time
 import random
 import math
+from einops import rearrange
+from datetime import datetime
 
 def add_weight_decay(params, weight_decay=1e-5, skip_list=()):
     """ From Ross Wightman at:
@@ -174,9 +176,12 @@ class HDF5TemporalDataset(Dataset):
     
     def __getitem__(self, idx):
         start_time = time.time()
-        
+        NUM_TRAJ_PER_ENV=16
         # Find which file and local index
         file_path, local_idx, dataset_path = self._get_file_and_local_idx(idx)
+        min_target_index = (local_idx//NUM_TRAJ_PER_ENV)*NUM_TRAJ_PER_ENV
+        max_target_index = min_target_index + NUM_TRAJ_PER_ENV - 1
+        target_local_idx = random.randint(min_target_index, max_target_index)
         
         try:
             with h5py.File(file_path, 'r') as f:
@@ -184,7 +189,8 @@ class HDF5TemporalDataset(Dataset):
                 group_name = dataset_path.split('/')[0]
                 
                 # Load trajectory data - shape: (n_timesteps, n_spatial)
-                trajectory = f[dataset_path][local_idx]
+                trajectory = f[dataset_path][local_idx].copy()[::self.sub_t]
+                target_trajectory = f[dataset_path][target_local_idx].copy()[::self.sub_t]
                 
                 # Load PDE parameters (alpha, beta, gamma) for this sample
                 alpha = f[group_name]['alpha'][local_idx]
@@ -193,11 +199,11 @@ class HDF5TemporalDataset(Dataset):
                 
                 # Sample temporal window randomly
                 total_frames_needed = self.input_frames + self.output_frames
-                max_start = (trajectory.shape[0] // self.sub_t) - total_frames_needed
+                max_start = trajectory.shape[0] - total_frames_needed
                 if max_start <= 0:
                     # If not enough frames, use what we have
                     start_idx = 0
-                    available_frames = trajectory.shape[0] // self.sub_t
+                    available_frames = trajectory.shape[0] 
                     actual_input_frames = min(self.input_frames, available_frames // 2)
                     actual_output_frames = available_frames - actual_input_frames
                 else:
@@ -206,12 +212,24 @@ class HDF5TemporalDataset(Dataset):
                     actual_output_frames = self.output_frames
                 
                 # Apply temporal subsampling and extract sequences
-                start_t = start_idx * self.sub_t
-                input_end_t = start_t + actual_input_frames * self.sub_t
-                output_end_t = input_end_t + actual_output_frames * self.sub_t
+                start_t = start_idx 
+                input_end_t = start_t + actual_input_frames 
+                output_end_t = input_end_t + actual_output_frames
                 
-                input_seq = trajectory[start_t:input_end_t:self.sub_t, ::self.sub_x]
-                output_seq = trajectory[input_end_t:output_end_t:self.sub_t, ::self.sub_x]
+                input_seq = trajectory[start_t:input_end_t, ::self.sub_x]
+                output_seq = trajectory[input_end_t:output_end_t, ::self.sub_x]
+
+                # for target, the start is after the frames from the context 
+                start_t = np.random.randint(start_idx, max_start + 1)
+                input_end_t = start_t + actual_input_frames 
+                output_end_t = input_end_t + actual_output_frames
+                
+                target_input_seq = target_trajectory[start_t:input_end_t, ::self.sub_x]
+                target_output_seq = target_trajectory[input_end_t:output_end_t, ::self.sub_x]
+
+
+                target_input_tensor = torch.from_numpy(target_input_seq).unsqueeze(-2).float()
+                target_output_tensor = torch.from_numpy(target_output_seq).unsqueeze(-2).float()
                 
                 # Add channel dimension and convert to torch tensors
                 # Expected format: (time, channels, spatial)
@@ -225,7 +243,9 @@ class HDF5TemporalDataset(Dataset):
                 
                 return {
                     'input': input_tensor, 
-                    'target': output_tensor,
+                    'output': output_tensor,
+                    'target_input': target_input_tensor,
+                    'target_output': target_output_tensor,
                     'alpha': float(alpha),
                     'beta': float(beta),
                     'gamma': float(gamma)
@@ -261,48 +281,97 @@ class DISCOLitModule(L.LightningModule):
         for k, v in training_cfg.items():
             setattr(self, k, v)
         self.automatic_optimization = False  # Enable manual optimization
+        
+        # In-context learning parameter (default to False)
+        self.in_context = getattr(self, 'in_context', False)
+        self.in_context_progressive = getattr(self, 'in_context_progressive', False)
+        
+        if self.in_context_progressive:
+            print("Progressive in-context learning enabled: probability will increase from ~0 to ~1 during training")
+        else:
+            print(f"In-context learning: {'enabled' if self.in_context else 'disabled'}")
+        
+        # Progressive step refinement parameters
+        self.progressive_steps = getattr(self, 'progressive_steps', False)
+        if self.progressive_steps:
+            # Default schedule: 80% at 1 step, then 5% each at 2,4,8,16 steps
+            self.step_schedule = getattr(self, 'step_schedule', [1, 2, 4, 8, 16])
+            self.step_percentages = getattr(self, 'step_percentages', [0.8, 0.05, 0.05, 0.05, 0.05])
+            
+            # Calculate step boundaries
+            self.step_boundaries = []
+            cumulative = 0
+            for pct in self.step_percentages:
+                cumulative += pct
+                self.step_boundaries.append(int(cumulative * self.max_steps))
+            
+            print(f"Progressive steps enabled:")
+            for i, (steps, boundary) in enumerate(zip(self.step_schedule, self.step_boundaries)):
+                start = self.step_boundaries[i-1] if i > 0 else 0
+                print(f"  Steps {start}-{boundary}: {steps} integration steps")
+        
+        # Track current number of integration steps
+        self.current_integration_steps = 1
 
     def forward(self, x, y):
         y_pred, _ = self.model(x, y)
         return y_pred
+    
+    def _update_integration_steps(self, global_step):
+        """Update the current number of integration steps based on training progress"""
+        if not self.progressive_steps:
+            return
+        
+        # Find which stage we're in
+        for i, boundary in enumerate(self.step_boundaries):
+            if global_step < boundary:
+                new_steps = self.step_schedule[i]
+                if new_steps != self.current_integration_steps:
+                    self.current_integration_steps = new_steps
+                    # Update the model's max_steps parameter
+                    self.model.max_steps = new_steps
+                    print(f"Step {global_step}: Updated integration steps to {new_steps}")
+                break
 
     def training_step(self, batch, batch_idx):
-        step_start = time.time()
+        # Update integration steps based on training progress
+        self._update_integration_steps(self.global_step)
         
         input = batch['input']
-        target = batch['target'] 
-        print('inp.shape', input.shape)
-        print('target.shape', target.shape)
-        data_prep_time = time.time() - step_start
+        
+        # Determine whether to use in-context learning for this step
+        use_in_context = self.in_context
+        if self.in_context_progressive:
+            # Linear schedule from ~0 to ~1 over the course of training
+            # Start with 0.01 probability and reach 0.99 at the end
+            progress = self.global_step / self.max_steps
+            in_context_prob = 0.01 + 0.98 * progress
+            use_in_context = torch.rand(1).item() < in_context_prob
+            
+            # Log the probability every 100 steps
+            if batch_idx % 100 == 0:
+                self.log('in_context_prob', in_context_prob, on_step=True, prog_bar=True)
+        
+        # Use target_output for in-context learning, output for regular training
+        target = batch['target_output'] if use_in_context else batch['output']
 
         # Add Gaussian noise to first timestamp during training if noise_level is set
-        noise_start = time.time()
-        if hasattr(self, 'noise_level') and self.noise_level is not None:
-            target[:, 0, ...] += torch.randn_like(target[:, 0, ...]) * self.noise_level
-        noise_time = time.time() - noise_start
+        #if hasattr(self, 'noise_level') and self.noise_level is not None:
+        #    target[:, 0, ...] += torch.randn_like(target[:, 0, ...]) * self.noise_level
 
-        setup_start = time.time()
+        target_inp = rearrange(target[:, :-1], 'b t c h -> (b t) 1 c h')
+        target_out = rearrange(target[:, 1:], 'b t c h -> (b t) 1 c h')
+
+        #input, target = batch
         state_labels = torch.tensor([0], device=input.device)
         optimizer = self.optimizers()
         scheduler = self.lr_schedulers()
         optimizer.zero_grad()
-        setup_time = time.time() - setup_start
-        
-        print('inp.device', input.device)
-        forward_start = time.time()
-        y_pred, metadata = self.model(input, state_labels, y=target, n_future_steps=target.shape[1]-1, integration_time=target.shape[1]-1)
-        forward_time = time.time() - forward_start
-        
-        loss_start = time.time()
-        loss = self.loss_fn(y_pred, target[:,1:])
-        loss_time = time.time() - loss_start
-        
-        backward_start = time.time()
+        y_pred, metadata = self.model(input, state_labels, y=target_inp, n_future_steps=1) #target.shape[1]-1, integration_time=target.shape[1]-1)
+        loss = self.loss_fn(y_pred, target_out)
         self.manual_backward(loss)
-        backward_time = time.time() - backward_start
         
         # Safe gradient monitoring and clipping
-        grad_start = time.time()
         if batch_idx % 100 == 0:  # Log every 100 steps
             try:
                 grad_stats = compute_gradient_stats(self.model)
@@ -310,46 +379,26 @@ class DISCOLitModule(L.LightningModule):
             except Exception:
                 # Fail silently to not break training
                 pass
-        grad_time = time.time() - grad_start
         
         # Add gradient clipping for stability
-        clip_start = time.time()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-        clip_time = time.time() - clip_start
         
-        opt_start = time.time()
         optimizer.step()
         scheduler.step()
-        opt_time = time.time() - opt_start
-        
-        total_time = time.time() - step_start
-        
-        # Log timing information every 50 steps
-        if batch_idx % 50 == 0:
-            timing_stats = {
-                'timing/data_prep': data_prep_time * 1000,  # ms
-                'timing/noise': noise_time * 1000,
-                'timing/setup': setup_time * 1000,
-                'timing/forward': forward_time * 1000,
-                'timing/loss': loss_time * 1000,
-                'timing/backward': backward_time * 1000,
-                'timing/gradients': grad_time * 1000,
-                'timing/clip': clip_time * 1000,
-                'timing/optimizer': opt_time * 1000,
-                'timing/total_step': total_time * 1000,
-            }
-            self.log_dict(timing_stats, on_step=True, logger=True)
-        
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('integration_steps', self.current_integration_steps, on_step=True, prog_bar=True)
         return loss
-
+    
     def validation_step(self, batch, batch_idx):
         input = batch['input']
-        target = batch['target']
+        target = batch['output']
         state_labels = torch.tensor([0], device=input.device)
-        y_pred, metadata = self.model(input, state_labels, y=target, n_future_steps=target.shape[1]-1, integration_time=target.shape[1]-1)
+        target_inp = rearrange(target[:, :-1], 'b t c h -> (b t) 1 c h')
+        target_out = rearrange(target[:, 1:], 'b t c h -> (b t) 1 c h')
 
-        loss = self.loss_fn(y_pred, target[:,1:])
+        y_pred, metadata = self.model(input, state_labels, y=target_inp, n_future_steps=1)
+
+        loss = self.loss_fn(y_pred, target_out)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
@@ -374,7 +423,7 @@ class DISCOLitModule(L.LightningModule):
 
 
 def get_run_name(cfg: DictConfig) -> str:
-    """Create a descriptive run name for DISCO training."""
+    """Create a descriptive run name for DISCO training with timestamp for uniqueness."""
     # Get dataset name
     dataset_name = cfg.data.dataset_name
     
@@ -407,13 +456,26 @@ def get_run_name(cfg: DictConfig) -> str:
         f"subt{cfg.data.sub_t}",
     ]
     
-    # Combine all parts
-    return f"DISCO_{dataset_name}_{'_'.join(model_params)}_{'_'.join(train_params)}_{'_'.join(data_params)}"
+    # Add checkpoint suffix if resuming from checkpoint
+    suffix = ""
+    if hasattr(cfg.training, 'checkpoint_path') and cfg.training.checkpoint_path:
+        suffix = "_resumed"
+    
+    # Add timestamp at the end for uniqueness
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Combine all parts with timestamp at the end
+    return f"DISCO_{dataset_name}_{'_'.join(model_params)}_{'_'.join(train_params)}_{'_'.join(data_params)}{suffix}_{timestamp}"
 
 @hydra.main(config_path="../configs", config_name="config_hdf5")
 def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
     run_name = get_run_name(cfg)
+    
+    # Print the unique run name for clarity
+    print(f"\n{'='*60}")
+    print(f"Run name (unique): {run_name}")
+    print(f"{'='*60}\n")
     
     # Create output directory
     output_dir = cfg.data.output_dir
@@ -522,8 +584,18 @@ def main(cfg: DictConfig):
     print(f"Training samples: {len(train_ds)}")
     print(f"Validation samples: {len(val_ds)}")
     
+    # Check if we should resume from a checkpoint
+    checkpoint_path = None
+    if hasattr(cfg.training, 'checkpoint_path') and cfg.training.checkpoint_path:
+        checkpoint_path = cfg.training.checkpoint_path
+        if os.path.exists(checkpoint_path):
+            print(f"Resuming training from checkpoint: {checkpoint_path}")
+        else:
+            print(f"Warning: Checkpoint path does not exist: {checkpoint_path}")
+            checkpoint_path = None
+    
     # Start training
-    trainer.fit(model, train_loader, val_loader)
+    trainer.fit(model, train_loader, val_loader, ckpt_path=checkpoint_path)
     
     # Print loading performance statistics
     train_stats = train_ds.get_loading_stats()

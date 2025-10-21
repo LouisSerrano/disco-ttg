@@ -1,0 +1,80 @@
+# VQVAE1D Tokenizer Configuration
+
+
+data:
+  dataset_name: "rd"
+  # HDF5 file configuration - separate files for train/val/test
+  train_hdf5_files:
+    - "/mnt/home/lserrano/gray-scott-python/data/feed_20params_512traj_each.hdf5"
+    - "/mnt/home/lserrano/gray-scott-python/data/kill_20params_512traj_each.hdf5"
+  val_hdf5_files:
+    - "/mnt/home/lserrano/gray-scott-python/data/val_feed_20params_8traj_each.hdf5"
+    - "/mnt/home/lserrano/gray-scott-python/data/val_kill_20params_8traj_each.hdf5"
+  test_hdf5_files:
+    - "/mnt/home/lserrano/gray-scott-python/data/val_feed_20params_8traj_each.hdf5"
+    - "/mnt/home/lserrano/gray-scott-python/data/val_kill_20params_8traj_each.hdf5"
+  output_dir: "/mnt/home/lserrano/ceph/zebra/tokenizer/"
+  n_input_frames: 1
+  n_output_frames: 1
+  sub_x: 1
+  sub_t: 1
+  image_size: 256
+  channels: 1
+  saved_folder:
+  resume_training: False
+  checkpoint_path:
+
+model:
+  channels: 2
+  init_dim: 64
+  max_dim: 512
+  layers:
+    - "residual"
+    - "compress_space"
+    - "residual"
+    - "compress_space"
+    - "residual"
+    - "compress_space"
+    - "residual"
+  code_dim: 16
+  num_codebooks: 1
+  codebook_size: 1024
+  num_groups: 16
+  pad_mode: "circular"
+  quantization_type: "resvq"
+  shared_codebook: true
+  input_conv_kernel_size: 5
+  residual_conv_kernel_size: 3
+
+training:
+  commitment_weight: 0.25
+  learning_rate: 1e-4
+  weight_decay: 1e-4
+  batch_size: 64
+  max_steps: 300000
+  warmup_steps: 1000
+  seed: 42
+  num_workers: 4
+  accelerator: "auto"
+  devices: 1
+  strategy: "auto"
+  precision: "32"
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 1
+  smoothing: false
+
+logging:
+  project: "zebra"
+  entity: null  # Set this to your wandb username
+  tags: ["vq", "1d"]
+  save_every_n_steps: 5000
+  checkpoint_every_n_steps: 5000 
+  output_dir: "~/zebra/outputs"
+
+huggingface:
+  push_to_hub: false
+  repo_name: "zebra-vqvae1d"
+  private: true
+  commit_message: "Add VQVAE1D tokenizer"
+  model_card: "tokenizer_model_card.md"
+  model_card_template: "tokenizer_model_card.md"

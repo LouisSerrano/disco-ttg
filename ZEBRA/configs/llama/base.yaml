@@ -1,0 +1,88 @@
+# Base LLaMA Configuration
+data:
+  data_dir: "/mnt/home/lserrano/data/"
+  output_dir: "/mnt/home/lserrano/ceph/zebra/llama/"
+  dataset_name: "advection-diffusion"
+  token_dataset_path: "/mnt/home/lserrano/ceph/zebra/tokens/"
+  tokenizer_path: "/mnt/home/lserrano/ceph/zebra/tokenizer/"
+  slice_size: 50
+  num_context_trajectories: 1
+  sub_x: 1
+  sub_t: 1
+  n_input_frames: 16
+  n_output_frames: 34
+  L: 16.0
+  nx: 256
+  nt: 100
+  T: 10.0
+  fractal_power_range: [1.0, 4.0] #[1.0, 4.0] #[1.0, 8.0] #8
+  fractal_degree: 256
+  v_range: [0.01, 1.0]
+  D_range: [0.001, 1.0]
+  train_hdf5_files:
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_train_envsize64.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_train_envsize64.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_train_envsize64.h5"
+  val_hdf5_files:
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_valid.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_valid.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_valid.h5"
+  test_hdf5_files:
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_test.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_test.h5"
+    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_test.h5"
+
+# Model parameters
+model:
+  vocab_size:   # Size of the vocabulary (should match tokenizer)
+  hidden_size: 256  # Hidden size of the model
+  num_hidden_layers: 8  # Number of transformer layers
+  num_attention_heads: 8  # Number of attention heads
+  intermediate_size: 1024  # Size of the intermediate layer
+  max_position_embeddings: 8192  # Maximum sequence length
+  rms_norm_eps: 1e-6  # RMS norm epsilon
+  num_dimensions: 1
+  max_length: 8192
+  bos_token_id: 
+  eos_token_id: 
+  context_token_id: 
+  input_token_id: 
+  target_token_id: 
+  bot_token_id: 
+  eot_token_id: 
+  pad_token_id:  
+
+training:
+  learning_rate: 1e-4
+  weight_decay: 1e-4
+  batch_size: 64
+  max_steps: 100000
+  warmup_steps: 1000
+  seed: 42
+  num_workers: 4
+  accelerator: "auto"
+  devices: 1
+  strategy: "auto"
+  precision: "32"
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 1
+  tokenize_on_the_fly: True
+  in_context: False
+
+logging:
+  project: "zebra"
+  entity: null  # Set this to your wandb username
+  tags: ["llama", "1d"]
+  save_every_n_steps: 5000
+  checkpoint_every_n_steps: 5000 
+  output_dir: "~/zebra/outputs"
+
+# Hugging Face parameters
+huggingface:
+  push_to_hub: false  # Whether to push the model to the Hugging Face Hub
+  repo_name: "your-username/zebra-llama"  # Repository name on the Hugging Face Hub
+  token: null  # Your Hugging Face token
+  private: false  # Whether the repository should be private
+  commit_message: "Upload model"  # Commit message for the push
+  model_card: true  # Whether to create a model card
+  model_card_template: "zebra_model_card.md"  # Template for the model card 
