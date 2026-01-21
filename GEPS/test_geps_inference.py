@@ -97,7 +97,7 @@ def optimize_codes_for_trajectory(model, input_sequence, test_target, cfg, n_out
       input_length = input_sequence.shape[1]
 
       # Optimize codes on input sequence transitions
-      print(f"Optimizing codes for trajectory with {input_sequence.shape[0]} frames...")
+      print(f"Optimizing codes for trajectory with {input_sequence.shape[1]} frames...")
 
       for step in range(n_optimization_steps):
           optimizer.zero_grad()
