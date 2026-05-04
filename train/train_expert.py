@@ -9,8 +9,8 @@ from src.operators.disco_ablations import DISCOExpert
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
-from src.utils import RelativeL2
-from src.advection_diffusion import Fractaloid, AdvectionDiffusionExplicit
+from src.utils.database import RelativeL2
+from src.utils.advection_diffusion import Fractaloid, AdvectionDiffusionExplicit
 import random
 
 def decorrelation_loss_univariate(features_1: torch.Tensor, features_2: torch.Tensor, lambda_val: float = 0.1) -> torch.Tensor:

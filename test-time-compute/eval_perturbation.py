@@ -14,7 +14,7 @@ import numpy as np
 from datetime import datetime
 import sys
 
-sys.path.append("/mnt/home/lserrano/disco-ball/")
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from ttc_utils import DEVICE
 from ttc_methods import (

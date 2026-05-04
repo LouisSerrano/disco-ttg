@@ -6,7 +6,7 @@ from datetime import datetime
 from torch.utils.data import DataLoader
 import sys
 
-sys.path.append("/mnt/home/lserrano/disco-ball/")
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from ttc_utils import (
     create_dataset_for_equation,

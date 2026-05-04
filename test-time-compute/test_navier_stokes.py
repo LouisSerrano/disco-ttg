@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Force unbuffered output
 sys.stdout.reconfigure(line_buffering=True)
 
-sys.path.append("/mnt/home/lserrano/disco-ball/")
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from ttc_utils import (
     save_results,

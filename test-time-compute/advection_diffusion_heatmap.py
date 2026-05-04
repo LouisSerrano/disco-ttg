@@ -8,7 +8,7 @@ import sys
 from ttc_utils import get_relative_l2_error
 import numpy as np
 
-sys.path.append("/mnt/home/lserrano/disco-ball/")
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from ttc_utils import (
     save_results,

@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import sys
 
-sys.path.append("/mnt/home/lserrano/disco-ball/")
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from src.utils.advection_diffusion import FractaloidPhase
 
 
