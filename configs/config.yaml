@@ -8,6 +8,8 @@ training:
   warmup_steps: 1000 
   min_lr_ratio: 1e-3
   noise_level: 0 #0.001
+  mixed_physics: False  # When True: training samples can have both v!=0 and D!=0
+  mixed_physics_ratio: 0.0  # Fraction of training samples that are mixed (rest split 50/50 pure adv/diff)
 
 data:
   dataset_name: "advection-diffusion"

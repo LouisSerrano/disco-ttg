@@ -20,7 +20,11 @@ from ttc_utils import (
 from train.train import TemporalBatchDatasetFly
 from train_advection_diffusion import GEPSLightning as GEPSAdvectionDiffusionLightning
 from train_combined_equation import GEPSLightning as GEPSCombinedLightning
-from train_gray_scott import GEPSLightning as GEPSGrayScottLightning, GrayScottDatasetWrapper
+try:
+    from train_gray_scott import GEPSLightning as GEPSGrayScottLightning, GrayScottDatasetWrapper
+except ImportError:
+    GEPSGrayScottLightning = None
+    GrayScottDatasetWrapper = None
 from src.utils.database import RelativeL2
 import random
 

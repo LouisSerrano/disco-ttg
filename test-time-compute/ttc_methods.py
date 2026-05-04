@@ -1,25 +1,38 @@
 import torch
 import random
+import logging
+import sys
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from ttc_utils import DEVICE, N_INPUT_FRAMES, N_OUTPUT_FRAMES, get_relative_l2_error
 from einops import rearrange
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
+
 def get_state_labels(x):
-    """Get appropriate state labels based on input shape.
+    """Get appropriate state labels based on number of input channels.
 
     Args:
         x: Input tensor with shape (b, t, c, h) for 1D or (b, t, c, h, w) for 2D
+           where c is the number of channels/state variables
 
     Returns:
-        state_labels: torch.tensor([0]) for 1D, torch.tensor([0, 1]) for 2D
+        state_labels: torch.tensor with indices [0, 1, ..., c-1] for c channels
     """
     if len(x.shape) == 4:  # 1D case: (b, t, c, h)
-        return torch.tensor([0], device=x.device)
+        num_channels = x.shape[2]
     elif len(x.shape) == 5:  # 2D case: (b, t, c, h, w)
-        return torch.tensor([0, 1], device=x.device)
+        num_channels = x.shape[2]
     else:
         raise ValueError(f"Unexpected input shape: {x.shape}. Expected 4D (1D data) or 5D (2D data)")
+
+    return torch.tensor(list(range(num_channels)), device=x.device)
 
 
 def get_target_from_batch(batch, device):
@@ -40,14 +53,14 @@ def get_target_from_batch(batch, device):
         raise KeyError("Batch must contain either 'target' or 'output' key")
 
 
-def test_direct_prediction(model, dataloader, dt=4/250):
+def test_direct_prediction(model, dataloader, dt):
     """Test standard model prediction"""
     relative_l2_error = get_relative_l2_error()
     total_error = 0
     samples = 0
     predictions = []
-    
-    for batch in dataloader:
+
+    for batch_idx, batch in enumerate(dataloader):
         inp = batch["input"].to(DEVICE)
         target = get_target_from_batch(batch, DEVICE)
         state_labels = get_state_labels(inp)
@@ -59,13 +72,18 @@ def test_direct_prediction(model, dataloader, dt=4/250):
             total_error += error * inp.shape[0]
             samples += inp.shape[0]
 
+        # Print progress
+        running_avg = total_error / samples
+        logger.info(f"Batch {batch_idx + 1}: {samples} samples processed, running avg error: {running_avg:.6f}")
+
     avg_error = total_error / samples
+    logger.info(f"Direct prediction complete: {samples} total samples, final avg error: {avg_error:.6f}")
     return avg_error, torch.cat(predictions)
 
 
 def encode_operators_from_training_data(model, dataloader, num_operators=20, n_trajectories_per_operator=4):
     """Encode operators from training trajectories"""
-    print(f"Encoding {num_operators} operators from training data...")
+    logger.info(f"Encoding {num_operators} operators from training data...")
     
     all_trajectories = []
     operator_metadata = []
@@ -137,7 +155,7 @@ def encode_operators_from_training_data(model, dataloader, num_operators=20, n_t
     return theta_operators, None, operator_metadata
 
 
-def greedy_operator_selection(model, theta_latent_operators, inp, target, max_operators=5, min_improvement_threshold=5.0, dt=4/250):
+def greedy_operator_selection(model, theta_latent_operators, inp, target, max_operators=5, min_improvement_threshold=5.0, dt=4/250, splitting_method="strang", refinement_factor=1):
     """Greedy operator selection"""
     relative_l2_error = get_relative_l2_error()
     theta_latent_operators = theta_latent_operators.to(DEVICE)
@@ -197,8 +215,9 @@ def greedy_operator_selection(model, theta_latent_operators, inp, target, max_op
             else:
                 with torch.no_grad():
                     dim = 1 if len(inp.shape) == 4 else 2
-                    pred = multi_operator_splitting(model, test_latent_operators, x_val, 
-                                                         nt=1, dt=dt)
+                    pred = multi_operator_splitting(model, test_latent_operators, x_val,
+                                                         nt=1, dt=dt, refinement_factor=refinement_factor,
+                                                         splitting_method=splitting_method)
             
             error = relative_l2_error(pred, y_val).item()
             #print('error', error)
@@ -217,39 +236,40 @@ def greedy_operator_selection(model, theta_latent_operators, inp, target, max_op
         else:
             improvement = (current_best_error - best_error_for_step) / current_best_error * 100
             should_continue = improvement >= min_improvement_threshold
-        
-        print(f"  Best operator: {best_operator_added}, error: {best_error_for_step:.6f}")
-        if step > 1:
-            print(f"  Improvement: {improvement:+.2f}%")
-        
+
+        logger.info(f"  Step {step}: Best operator: {best_operator_added}, error: {best_error_for_step:.6f}")
+        if step > 0:
+            logger.info(f"  Improvement: {improvement:+.2f}% (threshold: {min_improvement_threshold}%)")
+
         if should_continue and best_error_for_step < current_best_error:
             current_composition = best_composition.copy()
             current_best_error = best_error_for_step
+            current_operators = [all_operators[idx].unsqueeze(0).repeat(x_val.shape[0], 1) for idx in current_composition]
+            current_latent_operators = [theta_latent_operators[idx].unsqueeze(0).repeat(x_val.shape[0], 1) for idx in current_composition]
         else:
-            print(f"  Stopping - insufficient improvement")
+            logger.info(f"  Stopping - insufficient improvement (need {min_improvement_threshold}%, got {improvement:.2f}%)")
             break
 
     with torch.no_grad():
-        print('current_composition', current_composition)
+        logger.info(f'current_composition: {current_composition}')
         if len(current_composition) > 1:
             best_latent_operators = [theta_latent_operators[idx].unsqueeze(0) for idx in current_composition]
-            pred = multi_operator_splitting(model, best_latent_operators, inp[:, -1], nt=target.shape[1], dt=dt)
+            pred = multi_operator_splitting(model, best_latent_operators, inp[:, -1], nt=target.shape[1], dt=dt,
+                                          refinement_factor=refinement_factor, splitting_method=splitting_method)
         else:
             best_latent_operators = [theta_latent_operators[idx].unsqueeze(0) for idx in current_composition]
-            #model.decode_theta(test_operators())
             best_operators = model.decode_theta(best_latent_operators[0], dim)
-            #print('inp', inp.shape, best_operators.shape)
             pred, _ = model.solve_ode(inp[:, -1], best_operators, state_labels,
                                             dim=dim, integration_time=dt, n_future_steps=target.shape[1], dt=dt)
         #pred = rearrange(pred, 't b ... -> b t c h')
         #print('pred', pred.shape)
         test_error = relative_l2_error(pred, target).item()
-        print('test_error', test_error)
+        logger.info(f'test_error: {test_error}')
     
     return best_composition, best_error, best_pred
 
 
-def random_operator_selection(model, theta_latent_operators, inp, target, num_compositions=100, composition_lengths=[2], dt=4/250):
+def random_operator_selection(model, theta_latent_operators, inp, target, num_compositions=100, composition_lengths=[2], dt=4/250, splitting_method="strang", refinement_factor=1):
     """Random operator selection"""
     relative_l2_error = get_relative_l2_error()
     theta_latent_operators = theta_latent_operators.to(DEVICE)
@@ -302,23 +322,24 @@ def random_operator_selection(model, theta_latent_operators, inp, target, num_co
     if len(best_composition) > 0:
         with torch.no_grad():
             if len(best_composition) > 1:
-                pred = multi_operator_splitting(model, best_latent_operators, inp[:, -1], nt=target.shape[1], dt=dt)
+                pred = multi_operator_splitting(model, best_latent_operators, inp[:, -1], nt=target.shape[1], dt=dt,
+                                              refinement_factor=refinement_factor, splitting_method=splitting_method)
             else:
                 best_operators = model.decode_theta(best_latent_operators[0], dim)
                 pred, _ = model.solve_ode(inp[:, -1], best_operators, state_labels,
                                         dim=dim, integration_time=dt, n_future_steps=target.shape[1], dt=dt)
     else:
         # Fallback: return zeros if no valid composition found
-        best_pred = torch.zeros_like(target)
+        pred = torch.zeros_like(target)
 
     test_error = relative_l2_error(pred, target).item()
-    print('test_error', test_error)
+    logger.info(f'test_error: {test_error}')
 
-    return best_composition, test_error, best_pred
+    return best_composition, test_error, pred
 
 
 
-def random_operator_selection_batch(model, theta_latent_operators, inp, target, num_compositions=128, composition_lengths=[2], dt=4/250, random_batch_size=32):
+def random_operator_selection_batch(model, theta_latent_operators, inp, target, num_compositions=128, composition_lengths=[2], dt=4/250, random_batch_size=32, splitting_method="strang", refinement_factor=1):
     """Random operator selection"""
     relative_l2_error = get_relative_l2_error()
     theta_latent_operators = theta_latent_operators.to(DEVICE)
@@ -341,7 +362,7 @@ def random_operator_selection_batch(model, theta_latent_operators, inp, target, 
 
     dim = 1 if len(inp.shape) == 4 else 2
 
-    for _ in range(0, num_compositions, random_batch_size):
+    for iter_idx in range(0, num_compositions, random_batch_size):
         # Random composition length
         length = random.choice(composition_lengths)
 
@@ -367,8 +388,6 @@ def random_operator_selection_batch(model, theta_latent_operators, inp, target, 
 
         if length == 1:
             with torch.no_grad():
-                # Decode the single operator for this batch
-                #print('test_latent_operators', len(test_latent_operators), test_latent_operators[0].shape)
                 test_operators = model.decode_theta(test_latent_operators_batch[0], dim)
                 pred, _ = model.solve_ode(x_val, test_operators, state_labels,
                                         dim=dim, integration_time=dt, n_future_steps=1, dt=dt)
@@ -376,10 +395,9 @@ def random_operator_selection_batch(model, theta_latent_operators, inp, target, 
 
         else:
             with torch.no_grad():
-                #print(test_latent_operators[0].shape)
-                #print(test_latent_operators[1].shape)
                 pred = multi_operator_splitting(model, test_latent_operators_batch, x_val,
-                                                     nt=1, dt=dt)
+                                                     nt=1, dt=dt, refinement_factor=refinement_factor,
+                                                     splitting_method=splitting_method)
                 pred = rearrange(pred, '(b t) ... -> b t ...', b=random_batch_size)
 
         errors = [relative_l2_error(pred[k], y_val).item() for k in range(random_batch_size)]
@@ -395,19 +413,20 @@ def random_operator_selection_batch(model, theta_latent_operators, inp, target, 
     if len(best_composition) > 0:
         with torch.no_grad():
             if len(best_composition) > 1:
-                pred = multi_operator_splitting(model, best_latent_operators, inp[:, -1], nt=target.shape[1], dt=dt)
+                pred = multi_operator_splitting(model, best_latent_operators, inp[:, -1], nt=target.shape[1], dt=dt,
+                                              refinement_factor=refinement_factor, splitting_method=splitting_method)
             else:
                 best_operators = model.decode_theta(best_latent_operators[0], dim)
                 pred, _ = model.solve_ode(inp[:, -1], best_operators, state_labels,
                                         dim=dim, integration_time=dt, n_future_steps=target.shape[1], dt=dt)
     else:
         # Fallback: return zeros if no valid composition found
-        best_pred = torch.zeros_like(target)
+        pred = torch.zeros_like(target)
 
     test_error = relative_l2_error(pred, target).item()
-    print('test_error', test_error)
+    logger.info(f'test_error: {test_error}')
 
-    return best_composition, test_error, best_pred
+    return best_composition, test_error, pred
 
 
 
@@ -484,7 +503,8 @@ def multi_operator_splitting(model, theta_latents, x, nt=1, dt=4/250, refinement
 
 
 def beam_search_operator_selection(model, theta_latent_operators, inp, target,
-                                  beam_width=3, max_operators=5, min_improvement_threshold=5.0, dt=4/250):
+                                  beam_width=3, max_operators=5, min_improvement_threshold=5.0, dt=4/250,
+                                  splitting_method="strang", refinement_factor=1):
     """Beam search operator selection that maintains top-k combinations at each step"""
     relative_l2_error = get_relative_l2_error()
     theta_latent_operators = theta_latent_operators.to(DEVICE)
@@ -509,7 +529,7 @@ def beam_search_operator_selection(model, theta_latent_operators, inp, target,
     best_overall_error = float('inf')
     best_overall_pred = None
 
-    print(f"Starting beam search with beam width {beam_width}")
+    logger.info(f"Starting beam search with beam width {beam_width}")
 
     for step in range(max_operators):
         next_beams = []
@@ -533,7 +553,8 @@ def beam_search_operator_selection(model, theta_latent_operators, inp, target,
                 else:
                     with torch.no_grad():
                         pred = multi_operator_splitting(model, new_latent_ops, x_val,
-                                                       nt=1, dt=dt)
+                                                       nt=1, dt=dt, refinement_factor=refinement_factor,
+                                                       splitting_method=splitting_method)
 
                 error = relative_l2_error(pred, y_val).item()
                 next_beams.append((new_composition, error, new_latent_ops, new_ops))
@@ -552,13 +573,13 @@ def beam_search_operator_selection(model, theta_latent_operators, inp, target,
                 improvement = 0.0
 
             if len(current_beams[0][0]) > 1 and improvement < min_improvement_threshold:
-                print(f"  Step {step}: Stopping - insufficient improvement ({improvement:.2f}%)")
+                logger.info(f"  Step {step}: Stopping - insufficient improvement ({improvement:.2f}% < {min_improvement_threshold}%)")
                 break
 
         # Print current beam status
-        print(f"  Step {step}: Top beams:")
+        logger.info(f"  Step {step}: Top beams (threshold: {min_improvement_threshold}%):")
         for i, (composition, error, _, _) in enumerate(current_beams[:beam_width]):  # Show top 3
-            print(f"    Beam {i+1}: {composition} -> error: {error:.6f}")
+            logger.info(f"    Beam {i+1}: {composition} -> error: {error:.6f}")
 
         # Update best overall
         if len(current_beams) > 0 and current_beams[0][1] < best_overall_error:
@@ -568,17 +589,18 @@ def beam_search_operator_selection(model, theta_latent_operators, inp, target,
     # Final prediction with best composition
     if len(best_overall_composition) > 0:
         with torch.no_grad():
-            print(f'Final best composition: {best_overall_composition}')
+            logger.info(f'Final best composition: {best_overall_composition}')
             if len(best_overall_composition) > 1:
                 best_latent_operators = [theta_latent_operators[idx].unsqueeze(0) for idx in best_overall_composition]
-                pred = multi_operator_splitting(model, best_latent_operators, inp[:, -1], nt=target.shape[1], dt=dt)
+                pred = multi_operator_splitting(model, best_latent_operators, inp[:, -1], nt=target.shape[1], dt=dt,
+                                              refinement_factor=refinement_factor, splitting_method=splitting_method)
             else:
                 best_latent_operators = [theta_latent_operators[idx].unsqueeze(0) for idx in best_overall_composition]
                 best_operators = model.decode_theta(best_latent_operators[0], dim)
                 pred, _ = model.solve_ode(inp[:, -1], best_operators, state_labels,
                                         dim=dim, integration_time=dt, n_future_steps=target.shape[1], dt=dt)
             test_error = relative_l2_error(pred, target).item()
-            print(f'Final test error: {test_error}')
+            logger.info(f'Final test error: {test_error}')
             best_overall_pred = pred
 
     return best_overall_composition, best_overall_error, best_overall_pred
@@ -586,7 +608,7 @@ def beam_search_operator_selection(model, theta_latent_operators, inp, target,
 
 def beam_search_operator_selection_batch(model, theta_latent_operators, inp, target,
                                         beam_width=3, max_operators=5, min_improvement_threshold=5.0,
-                                        dt=4/250, batch_size=32):
+                                        dt=4/250, batch_size=32, splitting_method="strang", refinement_factor=1):
     """Beam search operator selection with batched evaluation for acceleration"""
     relative_l2_error = get_relative_l2_error()
     theta_latent_operators = theta_latent_operators.to(DEVICE)
@@ -611,7 +633,7 @@ def beam_search_operator_selection_batch(model, theta_latent_operators, inp, tar
     best_overall_error = float('inf')
     best_overall_pred = None
 
-    print(f"Starting batched beam search with beam width {beam_width}, batch size {batch_size}")
+    logger.info(f"Starting batched beam search with beam width {beam_width}, batch size {batch_size}")
 
     for step in range(max_operators):
         # Collect all candidate compositions for this step
@@ -681,7 +703,8 @@ def beam_search_operator_selection_batch(model, theta_latent_operators, inp, tar
                     with torch.no_grad():
                         pred = multi_operator_splitting(model, group_latent_ops,
                                                       x_val_batch[:len(group)*original_shape[0]],
-                                                      nt=1, dt=dt)
+                                                      nt=1, dt=dt, refinement_factor=refinement_factor,
+                                                      splitting_method=splitting_method)
                         pred = rearrange(pred, '(b t) ... -> b t ...', b=len(group))
 
                 # Calculate errors for this group
@@ -706,13 +729,13 @@ def beam_search_operator_selection_batch(model, theta_latent_operators, inp, tar
                 improvement = 0.0
 
             if len(current_beams[0][0]) > 1 and improvement < min_improvement_threshold:
-                print(f"  Step {step}: Stopping - insufficient improvement ({improvement:.2f}%)")
+                logger.info(f"  Step {step}: Stopping - insufficient improvement ({improvement:.2f}% < {min_improvement_threshold}%)")
                 break
 
         # Print current beam status
-        print(f"  Step {step}: Top beams:")
+        logger.info(f"  Step {step}: Top beams (threshold: {min_improvement_threshold}%):")
         for i, (composition, error, _, _) in enumerate(current_beams[:3]):
-            print(f"    Beam {i+1}: {composition} -> error: {error:.6f}")
+            logger.info(f"    Beam {i+1}: {composition} -> error: {error:.6f}")
 
         # Update best overall
         if len(current_beams) > 0 and current_beams[0][1] < best_overall_error:
@@ -725,7 +748,8 @@ def beam_search_operator_selection_batch(model, theta_latent_operators, inp, tar
             best_latent_operators = [theta_latent_operators[idx].unsqueeze(0) for idx in best_overall_composition]
             if len(best_overall_composition) > 1:
                 pred = multi_operator_splitting(model, best_latent_operators, inp[:, -1],
-                                              nt=target.shape[1], dt=dt)
+                                              nt=target.shape[1], dt=dt, refinement_factor=refinement_factor,
+                                              splitting_method=splitting_method)
             else:
                 best_operators = model.decode_theta(best_latent_operators[0], dim)
                 pred, _ = model.solve_ode(inp[:, -1], best_operators, state_labels,
@@ -733,7 +757,7 @@ def beam_search_operator_selection_batch(model, theta_latent_operators, inp, tar
                                         n_future_steps=target.shape[1], dt=dt)
 
             test_error = relative_l2_error(pred, target).item()
-            print(f'Final test error: {test_error}')
+            logger.info(f'Final test error: {test_error}')
             best_overall_pred = pred
     else:
         test_error = float('inf')
@@ -747,7 +771,7 @@ def gradient_selection_multi_operator(model, theta_operators, test_input, test_t
                                     refinement_factor=1, splitting_method="strang",
                                     aux_loss_weight=0, dt=4/250, theta_dim=3):
     """Multi-operator gradient selection"""
-    print(f"Running gradient based operator selection with {num_operators} operators...")
+    logger.info(f"Running gradient based operator selection with {num_operators} operators...")
     
     theta_operators = theta_operators.to(DEVICE)
     test_input = test_input.to(DEVICE)
@@ -810,8 +834,8 @@ def gradient_selection_multi_operator(model, theta_operators, test_input, test_t
         
         # Print progress
         if step % 50 == 0:
-            print(f"Step {step}, Loss: {loss.item():.6f}, Manifold loss: {total_manifold_loss.item():.6f}")
-        
+            logger.info(f"Step {step}, Loss: {loss.item():.6f}, Manifold loss: {total_manifold_loss.item():.6f}")
+
         # Evaluation
         if step % 100 == 0:
             with torch.no_grad():
@@ -820,6 +844,6 @@ def gradient_selection_multi_operator(model, theta_operators, test_input, test_t
                                                    refinement_factor=refinement_factor,
                                                    splitting_method=splitting_method)
             test_error = loss_fn(pred_test, test_target).item()
-            print(f"Test error for {test_target.shape[1]} frames: {test_error:.6f}")
+            logger.info(f"Test error for {test_target.shape[1]} frames: {test_error:.6f}")
     
     return theta_latents, pred_test, test_error

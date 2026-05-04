@@ -1,0 +1,68 @@
+defaults:
+  - _self_
+  - data: null
+  - optim: null
+  - inr: null
+  - wandb: null
+
+data:
+  dataset_name: "euler-ns"
+  # Euler/NS data configuration
+  file_dir: "/mnt/home/lserrano/ceph/data/euler_ns_short"  # Directory with trajectories_gpu*.h5 files
+  num_gpus: 8  # Number of GPU shards
+  output_dir: "/mnt/home/lserrano/ceph/geps/"
+  n_input_frames: 1
+  n_output_frames: 1
+  sub_x: 1
+  sub_t: 1
+  vorticity_scale: 10.0  # Normalization factor for vorticity
+  image_size: 256
+  channels: 1
+  saved_folder:
+  resume_training: False
+  checkpoint_path:
+
+train:
+  max_steps: 100000
+  batch_size: 8
+  batch_size_val: 8
+  lr: 0.001
+  init_type: 'default'
+  init_gain: 0.15
+  regul:
+
+model:
+  dataset_name: euler-ns
+  num_env: 17  # 1 (Euler) + 16 diffusion viscosities
+  hidden_c: 64
+  state_c: 1  # 1 channel for vorticity (vs 2 for Gray-Scott)
+  code_c: 2
+  method: 'rk4'
+  factor: 1
+  is_complete: False
+  type_augment:
+  options:
+  teacher_forcing_init: 0.99
+  teacher_forcing_decay: 0.99
+  teacher_forcing_update: 10
+  default_integration_time: 0.08
+  init_type:
+    A:
+      type: orthogonal
+      gain: 1
+    B:
+      type: orthogonal
+      gain: 1
+    weight:
+      type: orthogonal
+      gain: 1
+
+wandb:
+  entity: "xxx"
+  project: "xxx"
+  name:
+  id:
+  dir:
+  sweep_id:
+  saved_checkpoint: False
+  checkpoint_path:

@@ -1,0 +1,48 @@
+# Config file for MPP on Euler/Navier-Stokes dataset
+
+
+defaults:
+  - _self_
+
+data:
+  dataset_name: "euler-ns"
+  # Euler/NS data configuration
+  file_dir: "/mnt/home/lserrano/ceph/data/euler_ns_short"  # Directory with trajectories_gpu*.h5 files
+  num_gpus: 8  # Number of GPU shards
+  output_dir: "/mnt/home/lserrano/ceph/"
+  n_input_frames: 16
+  n_output_frames: 1
+  sub_x: 1
+  sub_t: 1
+  vorticity_scale: 10.0  # Normalization factor for vorticity
+  image_size: 256
+  channels: 1
+  saved_folder:
+  resume_training: False
+  checkpoint_path:
+
+train:
+  project: "mpp"
+  learning_rate: 2e-4
+  batch_size: 8
+  max_steps: 150000
+  output_dir: "/mnt/home/lserrano/ceph/"
+  warmup_steps: 1000
+  precision: 32
+
+model:
+  patch_size: 16
+  embed_dim: 384
+  processor_blocks: 8
+  n_states: 1  # 1 channel for vorticity (vs 2 for Gray-Scott)
+  num_heads: 8
+  block_type: "axial"
+  space_type: "axial_attention"
+  bias_type: "rel"
+  time_type: "attention"
+  gradient_checkpointing: False
+
+
+hydra:
+  run:
+    dir: "./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}"

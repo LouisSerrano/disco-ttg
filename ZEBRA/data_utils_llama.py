@@ -67,11 +67,15 @@ class RawDatasetWithContext(Dataset):
             raise ValueError("Slice size is larger than the sequence length.")
         start_index = np.random.randint(0, max_start_index + 1)
         images = trajectories[..., start_index:start_index + self.slice_size]
-        
-        if context_images:
-            context_images = torch.stack(context_images)
-        else:
-            # Fallback: use the same trajectory as context
-            context_images = images.unsqueeze(0)
-        
+
+        # Return empty tensor for context when num_context_trajectories=0
+        if self.num_context_trajectories == 0:
+            # Create empty context tensor with correct shape for collation
+            # Shape: (0, C, H, W, T) for 2D or (0, C, H, T) for 1D
+            empty_context = images.unsqueeze(0)[:0]  # Creates (0, ...) tensor
+            return images, empty_context
+
+        # Fallback: use the same trajectory as context
+        context_images = images.unsqueeze(0)
+
         return images, context_images

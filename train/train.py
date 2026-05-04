@@ -158,7 +158,8 @@ class TemporalBatchDatasetFly(IterableDataset):
     def __init__(self, n_batches, batch_size, sub_x, sub_t, split='train', input_frames=16, output_frames=16,
                  L=16.0, nx=256, nt=100, T=10.0,
                  v_range=(0.01, 1.0), D_range=(0.01, 1.0),
-                 fractal_degree=8, fractal_power_range=2, seed=None, in_context=True):
+                 fractal_degree=8, fractal_power_range=2, seed=None, in_context=True,
+                 mixed_physics=False, mixed_physics_ratio=0.0):
         self.n_batches = n_batches
         self.batch_size = batch_size
         self.sub_x = sub_x
@@ -177,6 +178,8 @@ class TemporalBatchDatasetFly(IterableDataset):
         self.seed = seed
         self.rng = np.random.default_rng(seed)
         self.in_context = in_context
+        self.mixed_physics = mixed_physics
+        self.mixed_physics_ratio = mixed_physics_ratio
 
     def __iter__(self):
         for _ in range(self.n_batches):
@@ -192,11 +195,28 @@ class TemporalBatchDatasetFly(IterableDataset):
             batch_diffusion = []
             for _ in range(self.batch_size):
                 # Sample advection speed and viscosity
-                if self.split == 'train':
+                # mixed_physics=True with mixed_physics_ratio=1.0: all samples are mixed
+                # mixed_physics=True with mixed_physics_ratio=0.5: 50% mixed, 25% pure adv, 25% pure diff
+                # mixed_physics=False (default): 50% pure advection, 50% pure diffusion
+                if self.split == 'train' and not self.mixed_physics:
                     if random.random() < 0.5:
                         v = self.rng.uniform(*self.v_range) if isinstance(self.v_range, (tuple, list)) else float(self.v_range)
                         D = 0
                     else:
+                        v = 0
+                        D = self.rng.uniform(*self.D_range) if isinstance(self.D_range, (tuple, list)) else float(self.D_range)
+                elif self.split == 'train' and self.mixed_physics:
+                    r = random.random()
+                    if r < self.mixed_physics_ratio:
+                        # Mixed: both v and D nonzero
+                        v = self.rng.uniform(*self.v_range) if isinstance(self.v_range, (tuple, list)) else float(self.v_range)
+                        D = self.rng.uniform(*self.D_range) if isinstance(self.D_range, (tuple, list)) else float(self.D_range)
+                    elif r < self.mixed_physics_ratio + (1 - self.mixed_physics_ratio) / 2:
+                        # Pure advection
+                        v = self.rng.uniform(*self.v_range) if isinstance(self.v_range, (tuple, list)) else float(self.v_range)
+                        D = 0
+                    else:
+                        # Pure diffusion
                         v = 0
                         D = self.rng.uniform(*self.D_range) if isinstance(self.D_range, (tuple, list)) else float(self.D_range)
                 else:
@@ -396,7 +416,12 @@ def get_run_name(cfg: DictConfig) -> str:
     # Add noise level if specified
     if hasattr(cfg.training, 'noise_level') and cfg.training.noise_level is not None:
         train_params.append(f"noise{cfg.training.noise_level}")
-    
+
+    # Add mixed physics flag if enabled
+    if getattr(cfg.training, 'mixed_physics', False):
+        ratio = getattr(cfg.training, 'mixed_physics_ratio', 0.0)
+        train_params.append(f"mixed{ratio}")
+
     # Add data parameters
     data_params = [
         f"inframes{cfg.data.n_input_frames}",
@@ -428,6 +453,8 @@ def main(cfg: DictConfig):
     wandb_logger.experiment.define_metric("grad_std/*", step_metric="trainer/global_step")
 
     n_batches = int(10000//cfg.training.batch_size)  # or set as needed for your epoch size
+    mixed_physics = getattr(cfg.training, 'mixed_physics', False)
+    mixed_physics_ratio = getattr(cfg.training, 'mixed_physics_ratio', 0.0)
     train_ds = TemporalBatchDatasetFly(
         n_batches=n_batches,
         batch_size=cfg.training.batch_size,
@@ -444,6 +471,8 @@ def main(cfg: DictConfig):
         fractal_degree=cfg.data.fractal_degree,
         v_range=tuple(cfg.data.v_range),
         D_range=tuple(cfg.data.D_range),
+        mixed_physics=mixed_physics,
+        mixed_physics_ratio=mixed_physics_ratio,
     )
     val_ds = train_ds  # You may want a separate validation dataset
 

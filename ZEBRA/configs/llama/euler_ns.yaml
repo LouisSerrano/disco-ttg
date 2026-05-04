@@ -1,0 +1,73 @@
+# LLaMA Configuration for Euler/Navier-Stokes
+
+data:
+  dataset_name: "euler-ns"
+  # Euler/NS data configuration
+  file_dir: "/mnt/home/lserrano/ceph/data/euler_ns_short"  # Directory with trajectories_gpu*.h5 files
+  num_gpus: 8  # Number of GPU shards
+  output_dir: "/mnt/home/lserrano/ceph/zebra/llama/"
+  token_dataset_path: "/mnt/home/lserrano/ceph/zebra/tokens/"
+  tokenizer_path: "/mnt/home/lserrano/ceph/zebra/tokenizer/"  # Path to trained tokenizer
+  vorticity_scale: 10.0  # Normalization factor for vorticity
+  slice_size: 17  # n_input_frames + n_output_frames
+  num_context_trajectories: 1
+  sub_x: 1
+  sub_t: 1
+  n_input_frames: 16
+  n_output_frames: 1
+  trajectories_per_environment: 512  # Number of trajectories per environment
+
+# Model parameters
+model:
+  vocab_size:   # Size of the vocabulary (should match tokenizer)
+  hidden_size: 256  # Hidden size of the model
+  num_hidden_layers: 8  # Number of transformer layers
+  num_attention_heads: 8  # Number of attention heads
+  intermediate_size: 1024  # Size of the intermediate layer
+  max_position_embeddings: 16384  # Maximum sequence length (512 tokens/frame × 32 frames)
+  rms_norm_eps: 1e-6  # RMS norm epsilon
+  num_dimensions: 2  # 2D spatial data
+  max_length: 16384  # 512 tokens/frame × 32 frames = 16384
+  bos_token_id:
+  eos_token_id:
+  context_token_id:
+  input_token_id:
+  target_token_id:
+  bot_token_id:
+  eot_token_id:
+  pad_token_id:
+
+training:
+  learning_rate: 1e-4
+  weight_decay: 1e-4
+  batch_size: 32
+  max_steps: 100000
+  warmup_steps: 1000
+  seed: 42
+  num_workers: 4
+  accelerator: "auto"
+  devices: 1
+  strategy: "auto"
+  precision: "bf16-mixed" #32
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 1
+  tokenize_on_the_fly: True
+  in_context: False
+
+logging:
+  project: "zebra"
+  entity: null
+  tags: ["llama", "2d", "euler-ns"]
+  save_every_n_steps: 5000
+  checkpoint_every_n_steps: 5000
+  output_dir: "~/zebra/outputs"
+
+# Hugging Face parameters
+huggingface:
+  push_to_hub: false
+  repo_name: "zebra-llama-euler-ns"
+  token: null
+  private: false
+  commit_message: "Upload Euler/NS model"
+  model_card: true
+  model_card_template: "zebra_model_card.md"

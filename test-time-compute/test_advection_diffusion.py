@@ -58,8 +58,8 @@ def main():
     parser.add_argument('--num_operators', type=int, default=20, help='Number of operators to use for grad')
     parser.add_argument('--num_samples', type=int, default=512, help='Number of test samples to evaluate')
     parser.add_argument('--experiment', type=str, required=True,
-                        choices=['E_AD_ALL', 'E_AD_v', 'E_AD_D'],
-                        help='Experiment type: E_AD_ALL (v,D in [0,1]), E_AD_v (v in [1,3], D=0), E_AD_D (D in [1,3], v=0)')
+                        choices=['E_AD_ALL', 'E_AD_v', 'E_AD_D', 'E_AD_EXTRAP_ALL'],
+                        help='Experiment type: E_AD_ALL (v,D in [0,1]), E_AD_v (v in [1,3], D=0), E_AD_D (D in [1,3], v=0), E_AD_EXTRAP_ALL (v,D in [0,2])')
     parser.add_argument('--methods', type=str, nargs='+',
                         choices=['direct', 'greedy', 'random', 'gradient', 'beam'],
                         default=['direct', 'greedy', 'random', 'gradient', 'beam'],
@@ -72,6 +72,12 @@ def main():
                         help='Beam width for beam search (default: 3)')
     parser.add_argument('--beam_batch_size', type=int, default=32,
                         help='Batch size for beam search operator selection (default: 32)')
+    parser.add_argument('--n_dict_batches', type=int, default=4,
+                        help='Number of batches (x64) for dictionary encoding (default: 4 = 256 operators)')
+    parser.add_argument('--dict_mixed_ratio', type=float, default=None,
+                        help='If set, encode dictionary from mixed physics data with this ratio '
+                             '(e.g. 0.5 = 50%% mixed, 25%% pure adv, 25%% pure diff). '
+                             'Default None = pure physics dictionary (paper setting).')
     args = parser.parse_args()
 
     # Define parameter ranges for each experiment
@@ -90,6 +96,11 @@ def main():
             'v_range': (0.0, 0.0),   # No advection (pure diffusion)
             'D_range': (1.0, 3.0),   # Diffusion in [1,3]
             'description': 'High diffusion [1,3], no advection'
+        },
+        'E_AD_EXTRAP_ALL': {
+            'v_range': (0.01, 2.0),  # Both v and D in [0,2] — extrapolation on both
+            'D_range': (0.01, 2.0),
+            'description': 'Both advection and diffusion in [0,2] range (extrapolation)'
         }
     }
 
@@ -115,8 +126,15 @@ def main():
     # For advection-diffusion, we'll use the TemporalBatchDatasetFly
 
     # Create train dataset for operator encoding (using experiment-specific parameter ranges)
+    dict_mixed = args.dict_mixed_ratio is not None
+    dict_mixed_ratio = args.dict_mixed_ratio if dict_mixed else 0.0
+    if dict_mixed:
+        print(f"Using mixed physics dictionary with ratio {dict_mixed_ratio}")
+    else:
+        print("Using pure physics dictionary (paper default)")
+
     train_dataset = TemporalBatchDatasetFly(
-        n_batches=4,  # Adjust as needed
+        n_batches=args.n_dict_batches,
         batch_size=64,
         sub_x=1,
         sub_t=1,
@@ -131,7 +149,9 @@ def main():
         D_range=(0.001, 1.0),#experiment_config['D_range'],
         fractal_degree=256,
         fractal_power_range=3,
-        seed=42
+        seed=42,
+        mixed_physics=dict_mixed,
+        mixed_physics_ratio=dict_mixed_ratio,
     )
 
     # Create test dataset (using experiment-specific parameter ranges)
@@ -196,7 +216,7 @@ def main():
     def run_direct_method():
         print("\nTesting direct prediction...")
         start_time = time.time()
-        direct_error, direct_pred = test_direct_prediction(model, test_loader)
+        direct_error, direct_pred = test_direct_prediction(model, test_loader, dt=10.0/100)
         direct_time = time.time() - start_time
         return {
             'error': direct_error,

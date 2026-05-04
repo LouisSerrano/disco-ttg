@@ -39,7 +39,7 @@ train:
 model:
   patch_size: 16
   embed_dim: 384
-  processor_blocks: True
+  processor_blocks: 8
   n_states: 2
   num_heads: 8
   block_type: "axial"

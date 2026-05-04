@@ -11,6 +11,7 @@ from zebra.models.tokenizer.vqvae2d import VQVAE2D
 from zebra.training.tokenizer_trainer import TokenizerTrainer
 #from zebra.utils.data import get_data, load_wave2d, load_vort, TemporalDataset
 from ZEBRA.data_utils import get_hdf5_files, TemporalBatchDatasetFly, HDF5TemporalDataset, GrayScottDatasetWrapper
+from torch.utils.data import DataLoader
 
 
 def get_wandb_run_name(cfg: DictConfig) -> str:
@@ -27,7 +28,7 @@ def get_wandb_run_name(cfg: DictConfig) -> str:
     # Combine all parts
     return f"tokenizer_{dataset_name}_{'_'.join(model_params)}"
 
-@hydra.main(config_path="../../configs/tokenizer", config_name="vqvae1d.yaml")
+@hydra.main(version_base=None, config_path="configs/tokenizer", config_name="vqvae1d.yaml")
 def train(cfg: DictConfig):
     # Set up logging
     print(cfg.training)
@@ -43,17 +44,17 @@ def train(cfg: DictConfig):
     dataset_name = cfg.data.dataset_name
 
     # model class
-    if dataset_name in ['gray-scott']:
+    if dataset_name in ['gray-scott', 'euler-ns']:
        model_class = VQVAE2D
     else:
         model_class = VQVAE1D
     # load data
     if dataset_name=="advection-diffusion":
-        n_batches = int(10000//cfg.train.batch_size)  # or set as needed for your epoch size
+        n_batches = int(10000//cfg.training.batch_size)  # or set as needed for your epoch size
 
         train_ds = TemporalBatchDatasetFly(
             n_batches=n_batches,
-            batch_size=cfg.train.batch_size,
+            batch_size=cfg.training.batch_size,
             sub_x=cfg.data.sub_x,
             sub_t=cfg.data.sub_t,
             input_frames=cfg.data.n_input_frames,
@@ -70,7 +71,7 @@ def train(cfg: DictConfig):
         )
         val_ds = TemporalBatchDatasetFly(
             n_batches=n_batches//10,
-            batch_size=cfg.train.batch_size,
+            batch_size=cfg.training.batch_size,
             sub_x=cfg.data.sub_x,
             sub_t=cfg.data.sub_t,
             input_frames=cfg.data.n_input_frames,
@@ -114,7 +115,7 @@ def train(cfg: DictConfig):
 
         train_loader = DataLoader(
             train_ds, 
-            batch_size=cfg.train.batch_size, 
+            batch_size=cfg.training.batch_size, 
             shuffle=True,
             num_workers=4,
             prefetch_factor=2,
@@ -122,8 +123,51 @@ def train(cfg: DictConfig):
         )
         
         val_loader = DataLoader(
-            val_ds, 
-            batch_size=cfg.train.batch_size, 
+            val_ds,
+            batch_size=cfg.training.batch_size,
+            shuffle=False,
+            num_workers=4,
+            prefetch_factor=2,
+            pin_memory=True
+        )
+    elif dataset_name == "euler-ns":
+        # Euler/Navier-Stokes dataset
+        from src.utils.euler_ns_dataset import EulerNSDatasetWrapperZEBRA
+
+        train_ds = EulerNSDatasetWrapperZEBRA(
+            file_dir=cfg.data.file_dir,
+            num_gpus=cfg.data.num_gpus,
+            split='train',
+            input_frames=getattr(cfg.data, 'n_input_frames', 16),
+            output_frames=getattr(cfg.data, 'n_output_frames', 1),
+            sub_x=getattr(cfg.data, 'sub_x', 1),
+            sub_t=getattr(cfg.data, 'sub_t', 1),
+            vorticity_scale=getattr(cfg.data, 'vorticity_scale', 20.0),
+        )
+
+        val_ds = EulerNSDatasetWrapperZEBRA(
+            file_dir=cfg.data.file_dir,
+            num_gpus=cfg.data.num_gpus,
+            split='val',
+            input_frames=getattr(cfg.data, 'n_input_frames', 16),
+            output_frames=getattr(cfg.data, 'n_output_frames', 1),
+            sub_x=getattr(cfg.data, 'sub_x', 1),
+            sub_t=getattr(cfg.data, 'sub_t', 1),
+            vorticity_scale=getattr(cfg.data, 'vorticity_scale', 20.0),
+        )
+
+        train_loader = DataLoader(
+            train_ds,
+            batch_size=cfg.training.batch_size,
+            shuffle=True,
+            num_workers=4,
+            prefetch_factor=2,
+            pin_memory=True
+        )
+
+        val_loader = DataLoader(
+            val_ds,
+            batch_size=cfg.training.batch_size,
             shuffle=False,
             num_workers=4,
             prefetch_factor=2,
@@ -151,7 +195,7 @@ def train(cfg: DictConfig):
 
         train_loader = DataLoader(
             train_ds, 
-            batch_size=cfg.train.batch_size, 
+            batch_size=cfg.training.batch_size, 
             shuffle=True,
             num_workers=4,
             prefetch_factor=2,
@@ -160,7 +204,7 @@ def train(cfg: DictConfig):
         
         val_loader = DataLoader(
             val_ds, 
-            batch_size=cfg.train.batch_size, 
+            batch_size=cfg.training.batch_size, 
             shuffle=False,
             num_workers=4,
             prefetch_factor=2,

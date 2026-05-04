@@ -21,14 +21,15 @@ from zebra.utils.data import get_data, load_wave2d, load_vort, TemporalDataset, 
 from ZEBRA.data_utils import get_hdf5_files, get_hdf5_files_gs, TemporalBatchDatasetFly, HDF5TemporalDataset, GrayScottDatasetWrapper
 from ZEBRA.data_utils_llama import RawDatasetWithContextFly, RawDatasetWithContext
 from ZEBRA.test_utils import get_test_metrics_1d, get_test_metrics_2d
+from src.utils.euler_ns_dataset import NavierStokesDatasetWrapperZEBRA
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Test ZEBRA model")
     
     # Essential arguments
-    parser.add_argument("--dataset_name", type=str, required=True, 
-                        choices=["advection-diffusion", "combined-equation", "gray-scott"],
+    parser.add_argument("--dataset_name", type=str, required=True,
+                        choices=["advection-diffusion", "combined-equation", "gray-scott", "euler-ns"],
                         help="Name of the dataset to test")
     parser.add_argument("--output_dir", type=str, default="./ZEBRA/results",
                         help="Output directory for results")
@@ -42,12 +43,12 @@ def parse_args():
                         help="Experiment configuration (required for advection-diffusion and combined-equation)")
     
     # Batch processing arguments
-    parser.add_argument("--batch_size", type=int, default=64,
-                        help="Batch size for testing")
+    parser.add_argument("--batch_size", type=int, default=8,
+                        help="Batch size for testing (reduced for 2D datasets to avoid OOM)")
     parser.add_argument("--num_samples", type=int, default=512,
                         help="Number of samples to test")
-    parser.add_argument("--num_workers", type=int, default=1,
-                        help="Number of dataloader workers")
+    parser.add_argument("--num_workers", type=int, default=0,
+                        help="Number of dataloader workers (0 avoids JAX fork warning)")
     
     # Additional parameters that might be needed
     
@@ -61,12 +62,12 @@ def parse_args():
 
 def plot_predictions_over_time(pred, gt, output_dir, dataset_name, n_input_frames, num_samples=5):
     """Plot predictions vs ground truth over time for selected samples and spatial indices."""
-    
+
     if dataset_name in ['advection-diffusion', 'combined-equation']:
         # 1D case: pred shape is (batch, height, channels, time)
         plot_1d_predictions(pred, gt, output_dir, n_input_frames, num_samples)
-    elif dataset_name == 'gray-scott':
-        # 2D case: pred shape is (batch, channels, height, width, time)  
+    elif dataset_name in ['gray-scott', 'euler-ns']:
+        # 2D case: pred shape is (batch, channels, height, width, time)
         plot_2d_predictions(pred, gt, output_dir, n_input_frames, num_samples)
 
 def plot_1d_predictions(pred, gt, output_dir, n_input_frames, num_samples=3):
@@ -327,7 +328,7 @@ def test(args):
             seed=124
         )
         
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=None, num_workers=args.num_workers, prefetch_factor=4, pin_memory=False)
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=None, num_workers=args.num_workers, prefetch_factor=4 if args.num_workers > 0 else None, pin_memory=False)
         
     elif dataset_name=="combined-equation":
 
@@ -402,10 +403,10 @@ def test(args):
 
         test_loader = DataLoader(
             test_dataset,
-            batch_size=64,
+            batch_size=args.batch_size,
             shuffle=False,
-            num_workers=4,
-            prefetch_factor=2,
+            num_workers=args.num_workers,
+            prefetch_factor=2 if args.num_workers > 0 else None,
             pin_memory=True
         )
 
@@ -417,7 +418,7 @@ def test(args):
         TEST_FILES = ["/mnt/home/lserrano/gray-scott-python/data/gray_scott_10x10_params_16traj_each.hdf5"]
         N_INPUT_FRAMES = 16
         N_OUTPUT_FRAMES = 32
-        
+
         test_ds = GrayScottDatasetWrapper(
         hdf5_files=TEST_FILES,
         split='test',
@@ -427,23 +428,50 @@ def test(args):
         sub_t=1,
         trajectories_per_environment=16,
         mode="test")
-        
+
         test_loader = DataLoader(
-            test_ds, 
+            test_ds,
             batch_size=args.batch_size,
             shuffle=True,
-            num_workers=4,
-            prefetch_factor=2,
+            num_workers=args.num_workers,
+            prefetch_factor=2 if args.num_workers > 0 else None,
             pin_memory=True,
-            
         )
+
+    elif dataset_name=="euler-ns":
+        # Euler/Navier-Stokes dataset - test on Navier-Stokes
+        N_INPUT_FRAMES = 16
+        N_OUTPUT_FRAMES = 16
+
+        test_ds = NavierStokesDatasetWrapperZEBRA(
+            file_dir="/mnt/home/lserrano/ceph/data/euler_ns_short",
+            num_gpus=8,
+            input_frames=N_INPUT_FRAMES,
+            output_frames=N_OUTPUT_FRAMES,
+            sub_x=1,
+            sub_t=1,
+            N_ns_ics=512,
+            vorticity_scale=10.0
+        )
+
+        test_loader = DataLoader(
+            test_ds,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=args.num_workers,
+            prefetch_factor=2 if args.num_workers > 0 else None,
+            pin_memory=True,
+        )
+
+        print(f"Test dataset (Navier-Stokes): {len(test_ds)} samples")
 
     checkpoint_dict = {
         "advection-diffusion": f"/mnt/home/lserrano/ceph/zebra/llama/{dataset_name}/radiant-planet-99/last.ckpt", # best.ckpt before
         "combined-equation":f"/mnt/home/lserrano/ceph/zebra/llama/{dataset_name}/skilled-plasma-98/best.ckpt",
-        "gray-scott": f"/mnt/home/lserrano/ceph/zebra/llama/{dataset_name}/dashing-violet-94/best.ckpt"
+        "gray-scott": f"/mnt/home/lserrano/ceph/zebra/llama/{dataset_name}/dashing-violet-94/best.ckpt",
+        "euler-ns": "/mnt/home/lserrano/ceph/zebra/llama/euler-ns/earthy-fire-25/last.ckpt"
     }
-    checkpoint_path = checkpoint_dict[dataset_name]
+    checkpoint_path = args.model_path if args.model_path else checkpoint_dict[dataset_name]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     lit_model = LLaMATrainer.load_from_checkpoint(checkpoint_path, map_location=device)
     vocab_size = lit_model.model.model.vocab_size - 8 # vocab_size here is the non-syntaxic tokens
@@ -452,7 +480,11 @@ def test(args):
         avg_loss, pred, gt = get_test_metrics_1d(test_loader, lit_model, input_size=N_INPUT_FRAMES, output_size=N_OUTPUT_FRAMES, num_examples=0, vocab_size=vocab_size)
 
     elif dataset_name in ['gray-scott']:
-        avg_loss, pred, gt = get_test_metrics_2d(test_loader, lit_model, input_size=N_INPUT_FRAMES, output_size=N_OUTPUT_FRAMES, max_len_size=31, num_examples=0, vocab_size=vocab_size)
+        avg_loss, pred, gt = get_test_metrics_2d(test_loader, lit_model, input_size=N_INPUT_FRAMES, output_size=N_OUTPUT_FRAMES, max_len_size=23, num_examples=0, vocab_size=vocab_size)
+
+    elif dataset_name in ['euler-ns']:
+        # Euler-NS is 2D with single channel
+        avg_loss, pred, gt = get_test_metrics_2d(test_loader, lit_model, input_size=N_INPUT_FRAMES, output_size=N_OUTPUT_FRAMES, max_len_size=23, num_examples=0, vocab_size=vocab_size)
 
     print(f"Dataset: {dataset_name}, Average Loss: {avg_loss}")
     

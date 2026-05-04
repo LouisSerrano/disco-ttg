@@ -4,6 +4,7 @@ This module contains common functions used across different test scenarios.
 """
 
 import os
+import logging
 import torch
 import torch.nn as nn
 import numpy as np
@@ -14,6 +15,10 @@ from pathlib import Path
 #import properscoring as ps
 #import uncertainty_toolbox as uct
 from datetime import datetime
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 class RelativeL2(nn.Module):
@@ -77,9 +82,11 @@ def get_test_metrics_1d(loader, model, input_size=16, output_size=34, num_exampl
     all_predictions = []
     all_ground_truth = []
     #all_context = []
+    batch_idx = 0
 
-    with torch.no_grad():
+    with torch.no_grad(), torch.autocast(device_type='cuda', dtype=torch.bfloat16):
         for images in loader:
+            batch_idx += 1
             images = images.cuda()
             #print('images', images.shape)
             #context_images = context_images.cuda()
@@ -140,24 +147,25 @@ def get_test_metrics_1d(loader, model, input_size=16, output_size=34, num_exampl
             urec = rearrange(urec, '(b t) c h -> b c h t', t=input_size)
             rec_loss = rel_loss(urec, images[..., :input_size])
 
-            print('urec', rec_loss.item())
+            logger.info(f'[Batch {batch_idx}] rec_loss: {rec_loss.item():.4f}')
 
             # Compute loss
             loss = rel_loss(upred, images[..., input_size:input_size+output_size])
-            print('loss', loss.item())
             total_loss += loss * b
             total_samples += b
-            
+            running_avg = total_loss / total_samples
+            logger.info(f'[Batch {batch_idx}] rel_loss: {loss.item():.4f} | running_avg: {running_avg.item():.4f} | samples: {total_samples}')
+
             # Store results
-            all_predictions.append(upred.cpu().detach().numpy())
-            all_ground_truth.append(images.cpu().detach().numpy())
-            #all_context.append(context_images.cpu().detach().numpy())
+            all_predictions.append(upred.cpu().detach().float().numpy())
+            all_ground_truth.append(images.cpu().detach().float().numpy())
+            #all_context.append(context_images.cpu().detach().float().numpy())
 
     avg_loss = total_loss / total_samples
     predictions = np.concatenate(all_predictions)
     ground_truth = np.concatenate(all_ground_truth)
     #context = np.concatenate(all_context)
-    
+
     return avg_loss.item(), predictions, ground_truth#, context
 
 
@@ -169,14 +177,17 @@ def get_test_metrics_2d(loader, model, input_size=16, output_size=32, max_len_si
     all_predictions = []
     all_ground_truth = []
     all_context = []
+    batch_idx = 0
 
-    with torch.no_grad():
+    with torch.no_grad(), torch.autocast(device_type='cuda', dtype=torch.bfloat16):
         for images in loader:
+            batch_idx += 1
             images = images.cuda()
 
             x = rearrange(images[..., :input_size], "b c h w t -> (b t) c h w").float()
             codes, indices = model.tokenizer(x, return_codes=True)
-            tokens = rearrange(indices, '(b t) c h w -> b c h w t', t=input_size) 
+            tokens = rearrange(indices, '(b t) c h w -> b c h w t', t=input_size)
+            num_codebooks = tokens.shape[1]
             h, w = tokens.shape[2], tokens.shape[3]
             t = tokens.shape[-1]
             b = tokens.shape[0]
@@ -191,7 +202,7 @@ def get_test_metrics_2d(loader, model, input_size=16, output_size=32, max_len_si
 
             # Generate predictions
             rollout_len = output_size
-            frame_size = int(h*w)
+            frame_size = int(h * w * num_codebooks)
             total_output_len = frame_size*rollout_len
             max_length = sequences.shape[1] + frame_size
 
@@ -214,7 +225,7 @@ def get_test_metrics_2d(loader, model, input_size=16, output_size=32, max_len_si
                     use_cache=True,
                     past_key_values=past_key_values,  # ✅ This is the key addition
                     return_dict_in_generate=True,
-                    bad_words_ids=[[vocab_size],[vocab_size+1],[vocab_size+2],[vocab_size+3],[vocab_size+4],[vocab_size+5],[vocab_size+6]])
+                    bad_words_ids=[[vocab_size],[vocab_size+1],[vocab_size+2],[vocab_size+3],[vocab_size+4],[vocab_size+5],[vocab_size+6],[vocab_size+7]])
                 
                 # Extract cache for next iteration
                 if hasattr(result, 'past_key_values'):
@@ -233,33 +244,35 @@ def get_test_metrics_2d(loader, model, input_size=16, output_size=32, max_len_si
             output_tokens = torch.cat(output_tokens, axis=1)
 
             # Decode predictions
-            indices = rearrange(output_tokens, 'b (t h w c)  -> (b t h w) c', 
-                              t=rollout_len, h=h, w=w).cuda()
+            indices = rearrange(output_tokens, 'b (t h w c)  -> (b t h w) c',
+                              t=rollout_len, h=h, w=w, c=num_codebooks).cuda()
+            indices = torch.clamp(indices, 0, vocab_size-1)
             quantized_pred = model.tokenizer.quantizers.get_output_from_indices(indices)
-            quantized_pred = rearrange(quantized_pred, '(b t h w) c -> (b t) c h w', t=rollout_len, h=h, w=w)
+            quantized_pred = rearrange(quantized_pred, '(b t h w) c -> (b t) c h w', b=b, t=rollout_len, h=h, w=w)
             
             upred = model.tokenizer.decode(quantized_pred)
             upred = rearrange(upred, '(b t) c h w -> b c h w t', t=rollout_len)
 
-            print('upred', upred.shape)
-            print('target',images[..., input_size:input_size+output_size].shape)
+            logger.debug(f'upred shape: {upred.shape}')
+            logger.debug(f'target shape: {images[..., input_size:input_size+output_size].shape}')
             
             # Compute loss
             loss = rel_loss(upred, images[..., input_size:input_size+output_size])
-            print('rel_loss', loss)
             total_loss += loss * b
             total_samples += b
-            
+            running_avg = total_loss / total_samples
+            logger.info(f'[Batch {batch_idx}] rel_loss: {loss.item():.4f} | running_avg: {running_avg.item():.4f} | samples: {total_samples}')
+
             # Store results
-            all_predictions.append(upred.cpu().detach().numpy())
-            all_ground_truth.append(images.cpu().detach().numpy())
+            all_predictions.append(upred.cpu().detach().float().numpy())
+            all_ground_truth.append(images.cpu().detach().float().numpy())
             #all_context.append(context_images[:, :num_examples].cpu().detach().numpy())
 
     avg_loss = total_loss / total_samples
     predictions = np.concatenate(all_predictions)
     ground_truth = np.concatenate(all_ground_truth)
     #context = np.concatenate(all_context)
-    
+
     return avg_loss.item(), predictions, ground_truth#, context
 
 
@@ -383,10 +396,10 @@ def get_uncertainty_metrics(loader, model, num_token=2, temperature=1.0, inp_siz
             total_samples += b
             
             # Store results
-            all_means.append(mean.cpu().detach().numpy())
-            all_stds.append(std.cpu().detach().numpy())
-            all_ground_truth.append(images.cpu().detach().numpy())
-            all_context.append(context_images.cpu().detach().numpy())
+            all_means.append(mean.cpu().detach().float().numpy())
+            all_stds.append(std.cpu().detach().float().numpy())
+            all_ground_truth.append(images.cpu().detach().float().numpy())
+            all_context.append(context_images.cpu().detach().float().numpy())
 
     # Compute averages
     metrics = {

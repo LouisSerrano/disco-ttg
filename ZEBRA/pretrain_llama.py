@@ -333,7 +333,108 @@ def train(cfg: DictConfig):
             num_workers=cfg.training.num_workers,
             pin_memory=True,
         )
-    
+
+    elif dataset_name == "euler-ns":
+        # Euler/Navier-Stokes dataset
+        from src.utils.euler_ns_dataset import EulerNSDatasetWrapperZEBRA
+
+        train_base_ds = EulerNSDatasetWrapperZEBRA(
+            file_dir=cfg.data.file_dir,
+            num_gpus=cfg.data.num_gpus,
+            split='train',
+            input_frames=getattr(cfg.data, 'n_input_frames', 16),
+            output_frames=getattr(cfg.data, 'n_output_frames', 1),
+            sub_x=getattr(cfg.data, 'sub_x', 1),
+            sub_t=1,  # Temporal subsampling in wrapper
+            vorticity_scale=getattr(cfg.data, 'vorticity_scale', 20.0),
+        )
+
+        val_base_ds = EulerNSDatasetWrapperZEBRA(
+            file_dir=cfg.data.file_dir,
+            num_gpus=cfg.data.num_gpus,
+            split='val',
+            input_frames=getattr(cfg.data, 'n_input_frames', 16),
+            output_frames=getattr(cfg.data, 'n_output_frames', 1),
+            sub_x=getattr(cfg.data, 'sub_x', 1),
+            sub_t=1,
+            vorticity_scale=getattr(cfg.data, 'vorticity_scale', 20.0),
+        )
+
+        if cfg.training.tokenize_on_the_fly:
+            # Use wrapper that returns raw data, tokenization happens in trainer
+            train_dataset = RawDatasetWithContext(
+                base_dataset=train_base_ds,
+                sub_t=cfg.data.sub_t,
+                slice_size=cfg.data.slice_size,
+                num_context_trajectories=cfg.data.num_context_trajectories,
+                trajectories_per_environment=getattr(cfg.data, 'trajectories_per_environment', 512)
+            )
+
+            val_dataset = RawDatasetWithContext(
+                base_dataset=val_base_ds,
+                sub_t=cfg.data.sub_t,
+                slice_size=cfg.data.slice_size,
+                num_context_trajectories=cfg.data.num_context_trajectories,
+                trajectories_per_environment=getattr(cfg.data, 'trajectories_per_environment', 512)
+            )
+        else:
+            # Pre-tokenize the dataset
+            temp_train_loader = torch.utils.data.DataLoader(
+                train_base_ds,
+                batch_size=cfg.training.batch_size,
+                shuffle=False,
+                num_workers=cfg.training.num_workers,
+                pin_memory=True,
+            )
+            temp_val_loader = torch.utils.data.DataLoader(
+                val_base_ds,
+                batch_size=cfg.training.batch_size,
+                shuffle=False,
+                num_workers=cfg.training.num_workers,
+                pin_memory=True,
+            )
+
+            # Dummy test loader for tokenize_dataset function
+            temp_test_loader = temp_val_loader
+
+            token_train, token_val, token_test = tokenize_dataset(
+                cfg.data.token_dataset_path,
+                run_name,
+                temp_train_loader,
+                temp_val_loader,
+                temp_test_loader,
+                tokenizer,
+                device=torch.device("cuda") if cfg.training.devices > 0 else torch.device("cpu")
+            )
+
+            train_dataset = TemporalDatasetWithContext(
+                token_train,
+                sub_t=cfg.data.sub_t,
+                slice_size=cfg.data.slice_size,
+                num_context_trajectories=cfg.data.num_context_trajectories
+            )
+            val_dataset = TemporalDatasetWithContext(
+                token_val,
+                sub_t=cfg.data.sub_t,
+                slice_size=cfg.data.slice_size,
+                num_context_trajectories=cfg.data.num_context_trajectories
+            )
+
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset,
+            batch_size=cfg.training.batch_size,
+            shuffle=True,
+            num_workers=cfg.training.num_workers,
+            pin_memory=True,
+        )
+        val_loader = torch.utils.data.DataLoader(
+            val_dataset,
+            batch_size=cfg.training.batch_size,
+            shuffle=False,
+            num_workers=cfg.training.num_workers,
+            pin_memory=True,
+        )
+
     elif dataset_name=="wave2d":
         if not cfg.training.tokenize_on_the_fly:
             train_loader, val_loader, test_loader = load_wave2d(cfg.data.data_dir, cfg.training.batch_size, cfg.training.batch_size, sub_t=1, slice_size=30)

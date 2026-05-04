@@ -39,6 +39,7 @@ class SimpleDataset(Dataset):
             else:
                 # Load from single dataset and split
                 # Try different possible keys at root level
+                print(f.keys())
                 if 'euler' in f:
                     all_trajectories = f['euler'][:]
                 elif 'diffusion' in f:
@@ -164,12 +165,14 @@ def train_model(train_file=None,
     """Train a neural ODE model."""
     
     # Create save directory based on parameters
-    if "euler_trajectories" in train_file:
+    if "euler_trajectories" or "euler" in train_file:
         param_dir = "euler2d"
-    elif "diffusion_trajectories" in train_file:
+    elif "diffusion_trajectories" or "diffusion" in train_file:
         param_dir = "diffusion2d"
-    else:
+    elif "navier_stokes_trajectories" or "navier_stokes" in train_file:
         param_dir = "navier_stokes2d"
+    else:
+        param_dir = "unknown"
     
     full_save_dir = os.path.join(save_dir, param_dir)
     os.makedirs(full_save_dir, exist_ok=True)

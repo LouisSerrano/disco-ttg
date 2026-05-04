@@ -207,3 +207,20 @@ datasets/
 
 # SLURM output files
 slurm-*.out
+
+# Exclude large data and model files
+*.png
+*.pth
+*.npy
+*.json
+*.npz
+*.csv
+
+# Weights & Biases
+wandb/
+
+# Swap files
+*.swp
+
+# PDFs
+*.pdf

@@ -1,3 +1,4 @@
+
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -11,41 +12,24 @@ from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
 from einops import rearrange
 from src.utils.database import RelativeL2
+from src.utils.advection_diffusion import Fractaloid, FractaloidPhase, AdvectionDiffusionExplicit
 import random
 import math
-import logging
 
-from src.multiple_physics_pretraining_original.models.avit import AViT, build_avit
-from train.train_rd import GrayScottHDF5Dataset
+from geps.utils import fix_seed, count_parameters, init_weights
+from geps.model.forecasters import *
+from geps.losses import *
 import h5py
-#from src.multiple_physics_pretraining_original.models.avit import AViT
+import time
+import logging
+from train.train_rd import GrayScottHDF5Dataset
 
-class CosineWithWarmupScheduler(_LRScheduler):
-    """Cosine annealing with linear warmup scheduler"""
-    def __init__(self, optimizer, warmup_steps, total_steps, min_lr_ratio=0.0, last_epoch=-1):
-        self.warmup_steps = warmup_steps
-        self.total_steps = total_steps
-        self.min_lr_ratio = min_lr_ratio
-        super().__init__(optimizer, last_epoch)
-    
-    def get_lr(self):
-        """Calculate learning rate for current epoch"""
-        if self.last_epoch <= self.warmup_steps:
-            # Linear warmup
-            lr_scale = self.last_epoch / self.warmup_steps if self.warmup_steps > 0 else 1.0
-        else:
-            # Cosine annealing
-            progress = (self.last_epoch - self.warmup_steps) / (self.total_steps - self.warmup_steps)
-            progress = min(progress, 1.0)  # Clamp to [0, 1]
-            lr_scale = self.min_lr_ratio + 0.5 * (1 - self.min_lr_ratio) * (1 + math.cos(math.pi * progress))
-        
-        return [base_lr * lr_scale for base_lr in self.base_lrs]
 
 class GrayScottDatasetWrapper(Dataset):
     """Efficient wrapper using GrayScottHDF5Dataset with optimized file access."""
     
     def __init__(self, hdf5_files, split='train', input_frames=16, output_frames=2, 
-                 sub_x=1, sub_t=1):
+                 sub_x=1, sub_t=1, trajectories_per_environment=512):
         logging.info(f"Initializing efficient dataset from {hdf5_files}")
         self.hdf5_files = hdf5_files if isinstance(hdf5_files, list) else [hdf5_files]
         self.split = split
@@ -53,6 +37,7 @@ class GrayScottDatasetWrapper(Dataset):
         self.output_frames = output_frames
         self.sub_x = sub_x
         self.sub_t = sub_t
+        self.trajectories_per_environment = trajectories_per_environment
         
         # Use the efficient GrayScottHDF5Dataset
         self.dataset = GrayScottHDF5Dataset(
@@ -89,6 +74,8 @@ class GrayScottDatasetWrapper(Dataset):
     def __getitem__(self, idx):
         # Load using the efficient dataset
         data = self.dataset[idx]
+
+        environment_idx = idx // self.trajectories_per_environment
         
         # Extract a and b channels and convert to tensors
         # Skip first timestep: data shape is (n_timesteps, n_x, n_y)
@@ -161,6 +148,7 @@ class GrayScottDatasetWrapper(Dataset):
             'output': output_trajectory,
             'f': f_val,
             'k': k_val,
+            'environment_idx': environment_idx
             #'time_points': self.time_points[start_idx:output_end]
         }
     
@@ -194,14 +182,25 @@ def get_hdf5_files(cfg, split_name):
             return result
         print(f"Warning: No HDF5 files specified for {split_name}")
 
-class MPPLightning(L.LightningModule):
+
+
+class GEPSLightning(L.LightningModule):
     def __init__(self, cfg):
         super().__init__()
         self.save_hyperparameters()
         self.cfg = cfg
-        #self.model = AViT(embed_dim=384 if self.cfg.data.dataset_name=="rd" else 768, processor_blocks=6, n_states=2 if self.cfg.data.dataset_name=="rd" else 1, small_compression=True if self.cfg.data.dataset_name=="rd" else False)
-        #self.model = AViT(embed_dim=384, processor_blocks=6, n_states=2)
-        self.model = build_avit(cfg.model)
+        self.model = Forecaster(cfg.model.dataset_name,
+                                cfg.model.state_c,
+                                cfg.model.hidden_c,
+                                cfg.model.code_c,
+                                cfg.model.factor,
+                                cfg.model.num_env,
+                                cfg.model.is_complete,
+                                cfg.model.type_augment,
+                                cfg.model.method,
+                                cfg.model.options)
+
+        init_weights(self.model, init_config=cfg.model.init_type)
         self.myloss = RelativeL2()
         self.automatic_optimization = False
 
@@ -214,130 +213,129 @@ class MPPLightning(L.LightningModule):
         sch = self.lr_schedulers()
 
         input = batch['input']
-        target = batch['output'] 
-
-        #target_inp = rearrange(target[:, :-1], 'b t c h w -> (b t) 1 c h w')
+        target = batch['output']
+        env = batch['environment_idx']
+        t = torch.tensor([0, self.cfg.model.default_integration_time])
         
-        input = rearrange(input, "b t c h w ->  t b c h w")
-        labels = torch.tensor([[0, 1]])
-        bcs = torch.tensor([[1, 1]])
-        pred = self.model(input, labels, bcs) # pred of shape B, C, H, W index_t+2 is excluded 
+        input = rearrange(input, "b t c h w ->  b c h w t")
+        target = rearrange(target, "b t c h w ->  b c h w t")
+
+        pred = self.model(input, t, env) # pred of shape B, C, H, W index_t+2 is excluded 
+        pred = pred[..., 1:]
+
+        #print('pred', pred.shape, target.shape)
+        #print('pred', pred.shape)
 
         rel_loss = self.myloss(pred, target)
 
         opt.zero_grad()
         self.manual_backward(rel_loss)
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
         opt.step()
         sch.step()
         
         self.log('train_l2', rel_loss.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-      
 
     def validation_step(self, batch, batch_idx):
-        self.model.eval()
-        input = batch['input']
-        target = batch['output'] 
         
-        input = rearrange(input, "b t c h w ->  t b c h w")
-        labels = torch.tensor([[0, 1]])
-        bcs = torch.tensor([[1, 1]])
+        input = batch['input']
+        target = batch['output']
+        
+        env = batch['environment_idx']
+        t = torch.tensor([0, self.cfg.model.default_integration_time])
+        #t = [0, self.cfg.model.default_integration_time]
+        
+        input = rearrange(input, "b t c h w ->  b c h w t")
+        target = rearrange(target, "b t c h w ->  b c h w t")
+        
+        pred = self.model(input, t, env) # pred of shape B, C, H, W index_t+2 is excluded 
+        pred = pred[..., 1:]
 
-        pred = self.model(input, labels, bcs) # pred of shape B, C, H, W index_t+2 is excluded 
+        #print('pred', pred.shape, target.shape)
+        #print('pred', pred.shape)
 
         rel_loss = self.myloss(pred, target)
 
         self.log('val_l2', rel_loss.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        
 
     def configure_optimizers(self):
-        lr = self.cfg.train.learning_rate 
+        lr = self.cfg.train.lr 
         #param_groups = [
             #{'params': self.model.tokenizer.encoder_layers.parameters(), 'lr': lr},
             #{'params': self.model.tokenizer.decoder_layers.parameters(), 'lr': lr},
             #{'params': self.model.tokenizer.quantizers.parameters(), 'lr': lr},#3e-3
         #]
-        max_steps = self.cfg.train.max_steps
-        warmup_steps = getattr(self, 'warmup_steps', int(0.05 * max_steps))
-        warmup_steps = int(0.05 * max_steps) if warmup_steps is None else warmup_steps
+        opt_gen = torch.optim.AdamW(self.model.parameters(), lr=lr, weight_decay=1e-4) # 1e-2 before
+        scheduler_ae = torch.optim.lr_scheduler.CosineAnnealingLR(opt_gen, self.cfg.train.max_steps)
 
-        opt = torch.optim.AdamW(self.model.parameters(), lr=lr, weight_decay=1e-4) # 1e-2 before
-        scheduler = CosineWithWarmupScheduler(
-            opt, 
-            warmup_steps=warmup_steps, 
-            total_steps=self.cfg.train.max_steps, 
-            min_lr_ratio=1e-3
-        )
-
-        return [opt], [scheduler] 
+        return [opt_gen], [scheduler_ae] #{"optimizer": opt_gen, "lr_scheduler": scheduler_ae}, {"optimizer": None, "lr_scheduler": None}
 
     def get_last_layer(self):
         return self.model.get_last_layer()
-  
-class TemporalDataset(torch.utils.data.Dataset):
-    def __init__(self, u, slice_size=20, smooth=False):
-        self.u = u 
-        self.slice_size = slice_size
-        self.smooth=smooth
 
-        kernel = torch.ones(1, 1, 2, 2) / 4.0
-        self.layer = nn.Conv2d(1, 1, 2, stride=2, padding_mode="circular", padding=0, bias=False)
-        self.layer.weight = nn.Parameter(kernel,  requires_grad=False)
 
-    def __len__(self):
-        return len(self.u)
-
-    def __getitem__(self, idx):
-        images = self.u[idx].clone()
-        if self.smooth:
-            t = images.shape[-1]
-            images = rearrange(images, 'c h w t -> t c h w')
-            images = self.layer(images)
-            images = rearrange(images, 't c h w -> c h w t', t=t)
-
-        max_start_index = images.shape[-1] - self.slice_size
-        if max_start_index < 0:
-            raise ValueError("Slice size is larger than the sequence length.")
-        start_index = np.random.randint(0, max_start_index + 1)
-        images = images[..., start_index:start_index + self.slice_size]
-
-        return images.float()
-
-def cleanup():
-    dist.destroy_process_group()
-
-@hydra.main(config_path="configs", config_name="mpp_gray_scott.yaml")
+@hydra.main(config_path="config/model", config_name="gray_scott.yaml")
 def main(cfg):
     torch.set_default_dtype(torch.float32)
     dataset_name = cfg.data.dataset_name
 
-    train_hdf5_files = get_hdf5_files(cfg, 'train')
-    val_hdf5_files = get_hdf5_files(cfg, 'val')
-    test_hdf5_files = get_hdf5_files(cfg, 'test')
-    
-    print(f"Train HDF5 files: {train_hdf5_files}")
-    print(f"Val HDF5 files: {val_hdf5_files}")
-    print(f"Test HDF5 files: {test_hdf5_files}")
-    
-    model = MPPLightning(cfg).cuda()
+    model = GEPSLightning(cfg).cuda()
 
-    train_ds = GrayScottDatasetWrapper(
-        hdf5_files=train_hdf5_files,
-        split='train',
-        input_frames=getattr(cfg.data, 'n_input_frames', 16),
-        output_frames=getattr(cfg.data, 'n_output_frames', 1),
-        sub_x=getattr(cfg.data, 'sub_x', 1),
-        sub_t=getattr(cfg.data, 'sub_t', 1),
-        #trajectories_per_environment=getattr(cfg.data, 'trajectories_per_environment', 512)
-    )
-    
-    val_ds = GrayScottDatasetWrapper(
-        hdf5_files=val_hdf5_files,
-        split='val',
-        input_frames=getattr(cfg.data, 'n_input_frames', 16),
-        output_frames=getattr(cfg.data, 'n_output_frames', 1),
-        sub_x=getattr(cfg.data, 'sub_x', 1),
-        sub_t=getattr(cfg.data, 'sub_t', 1),
-        #trajectories_per_environment=getattr(cfg.data, 'trajectories_per_environment', 512)
-    )
+    if dataset_name == "euler-ns":
+        # Euler/Navier-Stokes dataset
+        from src.utils.euler_ns_dataset import EulerNSDatasetWrapperMPP
+
+        train_ds = EulerNSDatasetWrapperMPP(
+            file_dir=cfg.data.file_dir,
+            num_gpus=cfg.data.num_gpus,
+            split='train',
+            input_frames=getattr(cfg.data, 'n_input_frames', 1),
+            output_frames=getattr(cfg.data, 'n_output_frames', 1),
+            sub_x=getattr(cfg.data, 'sub_x', 1),
+            sub_t=getattr(cfg.data, 'sub_t', 1),
+            vorticity_scale=getattr(cfg.data, 'vorticity_scale', 10.0),
+        )
+
+        val_ds = EulerNSDatasetWrapperMPP(
+            file_dir=cfg.data.file_dir,
+            num_gpus=cfg.data.num_gpus,
+            split='val',
+            input_frames=getattr(cfg.data, 'n_input_frames', 1),
+            output_frames=getattr(cfg.data, 'n_output_frames', 1),
+            sub_x=getattr(cfg.data, 'sub_x', 1),
+            sub_t=getattr(cfg.data, 'sub_t', 1),
+            vorticity_scale=getattr(cfg.data, 'vorticity_scale', 10.0),
+        )
+    else:
+        # Gray-Scott dataset (default)
+        train_hdf5_files = get_hdf5_files(cfg, 'train')
+        val_hdf5_files = get_hdf5_files(cfg, 'val')
+        test_hdf5_files = get_hdf5_files(cfg, 'test')
+
+        print(f"Train HDF5 files: {train_hdf5_files}")
+        print(f"Val HDF5 files: {val_hdf5_files}")
+        print(f"Test HDF5 files: {test_hdf5_files}")
+
+        train_ds = GrayScottDatasetWrapper(
+            hdf5_files=train_hdf5_files,
+            split='train',
+            input_frames=getattr(cfg.data, 'n_input_frames', 1),
+            output_frames=getattr(cfg.data, 'n_output_frames', 1),
+            sub_x=getattr(cfg.data, 'sub_x', 1),
+            sub_t=getattr(cfg.data, 'sub_t', 1),
+            trajectories_per_environment=512
+        )
+
+        val_ds = GrayScottDatasetWrapper(
+            hdf5_files=val_hdf5_files,
+            split='val',
+            input_frames=getattr(cfg.data, 'n_input_frames', 1),
+            output_frames=getattr(cfg.data, 'n_output_frames', 1),
+            sub_x=getattr(cfg.data, 'sub_x', 1),
+            sub_t=getattr(cfg.data, 'sub_t', 1),
+            trajectories_per_environment=8
+        )
 
     train_loader = DataLoader(
         train_ds, 
@@ -359,7 +357,7 @@ def main(cfg):
     
     run = wandb.init(project="disco-baselines")
     run.tags = (
-            ("mpp",)
+            ("geps",)
             + (dataset_name,)
         )
     run_name = wandb.run.name
@@ -381,6 +379,9 @@ def main(cfg):
         check_val_every_n_epoch=5,
         callbacks=[checkpoint_callback, lr_monitor],
     )
+
+    model = GEPSLightning(cfg)
+
     trainer.fit(model, train_loader, val_loader)
 
 if __name__ == "__main__":
