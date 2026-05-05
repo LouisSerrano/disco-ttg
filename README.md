@@ -41,6 +41,24 @@ cd disco-ball
 pip install -e .
 ```
 
+## Per-folder docs
+
+- [`train/README.md`](train/README.md) — training scripts ↔ configs mapping
+- [`test-time-compute/README.md`](test-time-compute/README.md) — TTC methods and per-equation evaluation
+- [`configs/README.md`](configs/README.md) — config-to-script mapping
+- [`bash/README.md`](bash/README.md) — SLURM launch scripts
+- [`neural-operator-splitting/README.md`](neural-operator-splitting/README.md) — classical/neural splitting baselines
+
+## Hardcoded paths
+
+The configs and bash scripts contain absolute paths from the original development environment (`/mnt/home/lserrano/...`). Before running on a new machine, find and replace these paths:
+
+```bash
+grep -rn "/mnt/home/lserrano" configs/ bash/
+```
+
+See each subfolder's README for the specific paths to swap.
+
 ## Checkpoints & Datasets
 
 <!-- TODO: Add links to pretrained checkpoints and datasets -->
