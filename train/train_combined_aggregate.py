@@ -1,3 +1,4 @@
+"""Train DISCO on aggregated combined-equation data. Config: configs/config_hdf5.yaml."""
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf

@@ -1,3 +1,4 @@
+"""Train DISCO operator-only model (DiscoOperator). Config: configs/operator.yaml."""
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf

@@ -1,3 +1,4 @@
+"""Train DISCO on Euler/Navier-Stokes + diffusion aggregated data. Config: configs/config_euler.yaml."""
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf

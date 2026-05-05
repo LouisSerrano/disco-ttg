@@ -1,3 +1,4 @@
+"""Train DISCO on the combined equation (HDF5 dataset). Config: configs/config_hdf5.yaml."""
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf

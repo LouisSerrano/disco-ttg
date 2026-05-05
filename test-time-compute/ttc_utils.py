@@ -1,3 +1,4 @@
+"""Shared utilities for test-time compute: dataset/checkpoint loading, metrics, result saving."""
 import torch
 import os
 from torch.utils.data import DataLoader

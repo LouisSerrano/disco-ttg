@@ -22,7 +22,9 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import sys
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HERE)
+sys.path.insert(0, os.path.dirname(_HERE))
 from src.utils.advection_diffusion import FractaloidPhase
 
 

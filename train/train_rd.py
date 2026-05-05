@@ -1,3 +1,4 @@
+"""Train DISCO on reaction-diffusion (Gray-Scott). Config: configs/config_rd.yaml."""
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf

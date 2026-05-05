@@ -1,10 +1,14 @@
 import torch
 import argparse
 import os
+import sys
 import time
 from datetime import datetime
 
-# Update these imports based on your actual project structure
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HERE)
+sys.path.insert(0, os.path.dirname(_HERE))
+
 from ttc_utils import (
     load_model_from_checkpoint, 
     create_dataset_for_equation,

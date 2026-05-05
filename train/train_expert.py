@@ -1,3 +1,4 @@
+"""Train DISCO Expert (single-equation specialist). Config: configs/expert.yaml."""
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf

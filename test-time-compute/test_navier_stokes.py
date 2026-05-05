@@ -1,3 +1,4 @@
+"""Test-time compute evaluation on Navier-Stokes / Euler 2D."""
 import torch
 import argparse
 import os
@@ -21,7 +22,9 @@ logger = logging.getLogger(__name__)
 # Force unbuffered output
 sys.stdout.reconfigure(line_buffering=True)
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HERE)
+sys.path.insert(0, os.path.dirname(_HERE))
 
 from ttc_utils import (
     save_results,

@@ -1,3 +1,4 @@
+"""Train DISCO (DISCOHouse) on advection-diffusion. Config: configs/config.yaml."""
 import os
 import hydra
 from omegaconf import DictConfig, OmegaConf

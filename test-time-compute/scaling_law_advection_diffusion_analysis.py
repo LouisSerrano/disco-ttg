@@ -8,15 +8,17 @@ from torch.utils.data import DataLoader
 import sys
 import json
 import matplotlib.pyplot as plt
-from ttc_utils import get_relative_l2_error
 import random
 from einops import rearrange
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HERE)
+sys.path.insert(0, os.path.dirname(_HERE))
 
 from ttc_utils import (
     save_results,
-    DEVICE
+    DEVICE,
+    get_relative_l2_error,
 )
 from ttc_methods import (
     test_direct_prediction,

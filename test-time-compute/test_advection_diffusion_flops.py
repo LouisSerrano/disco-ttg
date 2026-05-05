@@ -6,13 +6,15 @@ import numpy as np
 from datetime import datetime
 from torch.utils.data import DataLoader
 import sys
-from ttc_utils import get_relative_l2_error
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HERE)
+sys.path.insert(0, os.path.dirname(_HERE))
 
 from ttc_utils import (
     save_results,
-    DEVICE
+    DEVICE,
+    get_relative_l2_error,
 )
 from ttc_methods_flops import (
     test_direct_prediction,
