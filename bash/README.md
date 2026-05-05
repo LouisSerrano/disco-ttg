@@ -1,6 +1,6 @@
 # Launch scripts
 
-SLURM scripts that wrap `python train/...` and `python test-time-compute/...` invocations, organized by experiment.
+SLURM scripts that wrap `python train/...` and `python test_time_compute/...` invocations, organized by experiment.
 
 ## Layout
 

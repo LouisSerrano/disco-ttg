@@ -17,12 +17,12 @@ module load nccl
 source $VENVDIR/disco/bin/activate
 
 MODEL_PATH=/mnt/home/lserrano/ceph/disco/outputs/DISCO_euler_solverrk4_adjFalse_h128_t4_steps4_initFalse_bs16_lr0.0003_hdf5_noise0_inframes16_outframes2_subx1_subt1_20260328_124504/best-checkpoint.ckpt
-OUTPUT_DIR=./test-time-compute/results/rebuttal/euler_no_codebook
+OUTPUT_DIR=./test_time_compute/results/rebuttal/euler_no_codebook
 
 echo "=========================================="
 echo "Evaluating Euler no-codebook model"
 echo "=========================================="
-python test-time-compute/test_navier_stokes_targeted.py \
+python test_time_compute/test_navier_stokes_targeted.py \
     --model_path $MODEL_PATH \
     --method beam \
     --splitting_method strang \

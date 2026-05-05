@@ -17,13 +17,13 @@ module load nccl
 source $VENVDIR/disco/bin/activate
 
 MODEL_PATH=/mnt/home/lserrano/ceph/disco/outputs/DISCO_advection-diffusion_solverrk4_adjFalse_h128_t2_steps1_initFalse_bs64_lr0.0005_ctxFalse_noise0.0001_inframes16_outframes2_T10/best-checkpoint.ckpt
-OUTPUT_DIR=./test-time-compute/results/rebuttal/no_context_of2
+OUTPUT_DIR=./test_time_compute/results/rebuttal/no_context_of2
 
 for EXP in E_AD_ALL E_AD_v E_AD_D; do
     echo "=========================================="
     echo "Running $EXP on no-context model (outframes=2)"
     echo "=========================================="
-    python3 test-time-compute/test_advection_diffusion.py \
+    python3 test_time_compute/test_advection_diffusion.py \
         --model_path $MODEL_PATH \
         --experiment $EXP \
         --methods direct beam \

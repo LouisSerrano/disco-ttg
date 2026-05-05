@@ -14,7 +14,7 @@ module load cudnn
 module load nccl
 source $VENVDIR/disco/bin/activate
 
-python3 test-time-compute/test_advection_diffusion.py \
+python3 test_time_compute/test_advection_diffusion.py \
     --model_path /mnt/home/lserrano/ceph/disco/outputs/DISCO_advection-diffusion_solverrk4_adjFalse_h128_t2_steps1_initFalse_bs64_lr0.0005_ctxTrue_noise0.0001_mixed0.5_inframes16_outframes2_T10/best-checkpoint.ckpt \
     --experiment E_AD_EXTRAP_ALL \
     --methods direct beam \
@@ -22,4 +22,4 @@ python3 test-time-compute/test_advection_diffusion.py \
     --beam_batch_size 32 \
     --n_dict_batches 4 \
     --dict_mixed_ratio 0.5 \
-    --output_dir ./test-time-compute/results/rebuttal/extrap_all_mixed05_n256
+    --output_dir ./test_time_compute/results/rebuttal/extrap_all_mixed05_n256

@@ -19,7 +19,7 @@ source $VENVDIR/disco/bin/activate
 #run_name=DISCO_euler_solverrk4_adjFalse_h128_t4_steps2_initFalse_bs32_lr0.0003_hdf5_noise0_inframes16_outframes2_subx1_subt1_20260124_040907
 run_name=DISCO_euler_solverrk4_adjFalse_h128_t4_steps4_initFalse_bs16_lr0.0003_hdf5_noise0_inframes16_outframes2_subx1_subt1_20260124_041037
 
-python test-time-compute/test_navier_stokes.py \
+python test_time_compute/test_navier_stokes.py \
     --model_path ./outputs/${run_name}/last.ckpt \
     --method direct \
     #--output_dir ./results_targeted \

@@ -17,9 +17,9 @@ module load nccl
 source $VENVDIR/disco/bin/activate
 
 # Generate perturbation dataset: 128 trajectories per epsilon, fixed v=0.5, D=0.3
-python3 test-time-compute/generate_perturbation_data.py \
+python3 test_time_compute/generate_perturbation_data.py \
     --n_samples 128 \
     --epsilons 0.0 0.01 0.05 0.1 0.25 0.5 1.0 \
     --v 0.5 --D 0.3 \
-    --output_dir ./test-time-compute/results/perturbation_data \
+    --output_dir ./test_time_compute/results/perturbation_data \
     --seed 42

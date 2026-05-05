@@ -10,7 +10,7 @@ from einops import rearrange
 import copy
 import csv
 
-sys.path.append("/mnt/home/lserrano/disco-ball/test-time-compute")
+sys.path.append("/mnt/home/lserrano/disco-ball/test_time_compute")
 
 from ttc_utils import (
     save_results,

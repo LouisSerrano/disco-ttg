@@ -19,7 +19,7 @@ source $VENVDIR/disco/bin/activate
 MODEL_PATH=/mnt/home/lserrano/ceph/disco/outputs/DISCO_advection-diffusion_solverrk4_adjFalse_h128_t2_steps1_initFalse_bs64_lr0.0005_ctxTrue_noise0_inframes16_outframes16_T10/last.ckpt
 
 # Fitting window sweep on E_AD_ALL (beam search)
-python3 test-time-compute/sweep_ad_fitting_window.py \
+python3 test_time_compute/sweep_ad_fitting_window.py \
     --model_path $MODEL_PATH \
     --experiment E_AD_ALL \
     --window_sizes 2 4 8 16 32 \

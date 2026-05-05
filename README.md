@@ -12,7 +12,7 @@ disco-ball/
 │   ├── utils/                    # Dataset generation, metrics, plotting
 │   └── torchdiffeq/             # Custom ODE solvers
 ├── train/                        # Training scripts (Hydra + PyTorch Lightning)
-├── test-time-compute/            # Inference & test-time methods
+├── test_time_compute/            # Inference & test-time methods
 │   ├── ttc_methods.py            # Core test-time compute methods
 │   ├── ttc_utils.py              # Utility functions
 │   ├── test_advection_diffusion.py
@@ -44,7 +44,7 @@ pip install -e .
 ## Per-folder docs
 
 - [`train/README.md`](train/README.md) — training scripts ↔ configs mapping
-- [`test-time-compute/README.md`](test-time-compute/README.md) — TTC methods and per-equation evaluation
+- [`test_time_compute/README.md`](test_time_compute/README.md) — TTC methods and per-equation evaluation
 - [`configs/README.md`](configs/README.md) — config-to-script mapping
 - [`bash/README.md`](bash/README.md) — SLURM launch scripts
 - [`neural-operator-splitting/README.md`](neural-operator-splitting/README.md) — classical/neural splitting baselines
@@ -87,10 +87,10 @@ See `bash/` for SLURM submission scripts used in the paper.
 
 ```bash
 # Test-time compute evaluation on advection-diffusion
-python test-time-compute/test_advection_diffusion.py
+python test_time_compute/test_advection_diffusion.py
 
 # Navier-Stokes evaluation
-python test-time-compute/test_navier_stokes.py
+python test_time_compute/test_navier_stokes.py
 ```
 
 ## Baselines
