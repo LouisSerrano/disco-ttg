@@ -1,0 +1,75 @@
+# Generic training config for DISCO on any HDF5 dataset.
+#
+# Expected dataset format (per HDF5 file):
+#   trajectories: (N, T, C, *spatial)   float32 — sample trajectories
+#   env_id:       (N,)                  int64   — environment index for each sample
+#
+# Files can live on disk OR on the HuggingFace Hub:
+#   data.hf_repo_id can be set to e.g. "sogeeking/disco-ad" to fetch via
+#   huggingface_hub. If hf_repo_id is null, the local paths in *_files are used.
+
+training:
+  project: "disco-ball"
+  run_name: null            # auto-generated if null
+  max_steps: 100000
+  batch_size: 64
+  lr: 5e-4
+  weight_decay: 1e-4
+  warmup_steps: 1000
+  min_lr_ratio: 1e-3
+  num_workers: 4
+  prefetch_factor: 2
+  noise_level: 0
+  codebook_prob: 0.5        # probability of using codebook lookup per sample
+  codebook_momentum: 0.99
+  codebook_loss_weight: 0.5
+  checkpoint_path: null     # resume from checkpoint
+  log_grad_every: 100
+
+data:
+  dataset_name: "generic"
+  hf_repo_id: null          # e.g. "sogeeking/disco-ad" — if set, downloads from HF
+  hf_revision: null         # optional pin to a specific commit/tag
+  train_files:
+    - "/path/to/your/train.h5"
+  val_files:
+    - "/path/to/your/val.h5"
+  test_files:
+    - "/path/to/your/test.h5"
+  trajectories_key: "trajectories"   # HDF5 dataset name for trajectories
+  env_id_key: "env_id"               # HDF5 dataset name for environment indices
+  output_dir: "./outputs/"
+  n_input_frames: 16
+  n_output_frames: 16
+  sub_x: 1
+  sub_t: 1
+  num_environments: 384     # total environments across all train files
+
+model:
+  n_states: 1
+  hidden_dim: 128
+  theta_dim: 4
+  patch_size: 8
+  ndims: [1]                # spatial dimensionality, e.g. [1] for 1D, [2] for 2D
+  groups: 1
+  processor_blocks: 4
+  drop_path: 0.0
+  num_heads: 4
+  bias_type: "rel"
+  hpnn_head_hidden_dim: 128
+  max_steps: 1
+  atol: 1e-6
+  rtol: 1e-5
+  use_adjoint: False
+  solver: "rk4"
+  decoder_use_bias: True
+  principled_initialization: False
+  boundary_conditions: "periodic"
+  opnn_channels: 8
+  opnn_bottleneck_multiplier: 2
+  default_integration_time: 0.016
+
+test:
+  results_dir: "./results/"
+  splits: ["test"]
+  num_steps: 1
