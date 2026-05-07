@@ -83,7 +83,7 @@ model = DISCOLitModule.load_from_checkpoint(ckpt)
 - `sogeeking/disco-ad` — advection-diffusion *(synthetic; generated on-the-fly)*
 - [`sogeeking/disco-combined`](https://huggingface.co/datasets/sogeeking/disco-combined) — combined equation (Burgers / heat / dispersion test+val splits)
 - [`sogeeking/disco-rd`](https://huggingface.co/datasets/sogeeking/disco-rd) — reaction-diffusion (Gray-Scott val splits)
-- `sogeeking/disco-ns` — Navier-Stokes / Euler *(in progress — 512-trajectory val split)*
+- [`sogeeking/disco-ns`](https://huggingface.co/datasets/sogeeking/disco-ns) — Navier-Stokes / Euler 2D (512-trajectory val split, ~6 GB)
 
 Test files use a uniform layout consumed by `train/train_generic.py` and
 `test_time_compute/test_generic.py`:
