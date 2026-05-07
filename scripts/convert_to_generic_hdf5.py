@@ -79,22 +79,27 @@ def convert_combined(args):
 
 
 def convert_rd(args):
-    """Gray-Scott format: trajectory_a + trajectory_b + alpha/beta/f/gamma/k."""
+    """Gray-Scott format: trajectory_a + trajectory_b + alpha/beta/f/gamma/k.
+
+    Returns a streaming sentinel so main() can write the (N, T, 2, X) array
+    in chunks — train files are 10240×51×16384×float32 = 32 GB per channel,
+    which OOMs if loaded fully and stacked.
+    """
     with h5py.File(args.input, "r") as fin:
         split = args.split or _detect_split(fin)
-        traj_a = fin[f"{split}/trajectory_a"][:]
-        traj_b = fin[f"{split}/trajectory_b"][:]
+        a_shape = fin[f"{split}/trajectory_a"].shape
+        b_shape = fin[f"{split}/trajectory_b"].shape
+        if a_shape != b_shape:
+            raise ValueError(f"a/b shapes differ: {a_shape} vs {b_shape}")
         params = {p: fin[f"{split}/{p}"][:] for p in ("alpha", "beta", "f", "gamma", "k")
                   if p in fin[split]}
-
-    print(f"  trajectory_a: {traj_a.shape} | trajectory_b: {traj_b.shape}")
-    # (N, T, X) + (N, T, X) -> (N, T, 2, X)
-    trajs = np.stack([traj_a, traj_b], axis=2).astype(np.float32, copy=False)
-
+    N, T, X = a_shape
+    print(f"  trajectory_a/b each: {a_shape}")
     rows = list(zip(*[params[p].tolist() for p in sorted(params)]))
     env_id, env_map = _make_env_ids(rows)
     params_arr = np.array(sorted(env_map, key=env_map.get), dtype=np.float64)
-    return trajs, env_id, {"_".join(sorted(params)): params_arr}, {}
+    param_key = "_".join(sorted(params))
+    return ("__RD_STREAM__", args.input, split, (N, T, 2, X), env_id, param_key, params_arr)
 
 
 def convert_ns(args):
@@ -156,6 +161,33 @@ def main():
         else {"compression": "lzf"} if args.compression == "lzf"
         else {}
     )
+
+    # RD streaming path: copy traj_a/b one chunk at a time into channels 0/1.
+    if isinstance(result, tuple) and result and result[0] == "__RD_STREAM__":
+        _, src_path, split, (N, T, C, X), env_id, param_key, params_arr = result
+        print(f"  streaming write: total {N} trajectories, shape (T={T}, C={C}, X={X})")
+        print(f"Writing {args.output} ...")
+        with h5py.File(args.output, "w") as fout, h5py.File(src_path, "r") as fin:
+            traj_ds = fout.create_dataset(
+                "trajectories",
+                shape=(N, T, C, X),
+                dtype=np.float32,
+                chunks=(1, T, C, X),
+                **comp_kwargs,
+            )
+            CHUNK = 64
+            for start in range(0, N, CHUNK):
+                end = min(start + CHUNK, N)
+                a = fin[f"{split}/trajectory_a"][start:end].astype(np.float32, copy=False)
+                b = fin[f"{split}/trajectory_b"][start:end].astype(np.float32, copy=False)
+                traj_ds[start:end, :, 0, :] = a
+                traj_ds[start:end, :, 1, :] = b
+                if start % (CHUNK * 8) == 0:
+                    print(f"    wrote {end}/{N}")
+            fout.create_dataset("env_id", data=env_id)
+            fout.create_dataset(f"env_params/{param_key}", data=params_arr)
+        print("Done.")
+        return
 
     # NS streaming path: copy one equation at a time so we never hold ~40 GB at once.
     if isinstance(result, tuple) and result and result[0] == "__NS_STREAM__":
