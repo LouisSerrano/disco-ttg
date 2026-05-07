@@ -80,10 +80,19 @@ model = DISCOLitModule.load_from_checkpoint(ckpt)
 ```
 
 **Datasets** (HuggingFace Hub, one repo per equation):
-- `sogeeking/disco-ad` — advection-diffusion *(coming soon)*
-- `sogeeking/disco-combined` — combined equation *(coming soon)*
-- `sogeeking/disco-rd` — reaction-diffusion *(coming soon)*
-- `sogeeking/disco-ns` — Navier-Stokes / Euler *(coming soon)*
+- `sogeeking/disco-ad` — advection-diffusion *(synthetic; generated on-the-fly)*
+- [`sogeeking/disco-combined`](https://huggingface.co/datasets/sogeeking/disco-combined) — combined equation (Burgers / heat / dispersion test+val splits)
+- [`sogeeking/disco-rd`](https://huggingface.co/datasets/sogeeking/disco-rd) — reaction-diffusion (Gray-Scott val splits)
+- `sogeeking/disco-ns` — Navier-Stokes / Euler *(in progress — 512-trajectory val split)*
+
+Test files use a uniform layout consumed by `train/train_generic.py` and
+`test_time_compute/test_generic.py`:
+
+```
+trajectories: (N, T, C, *spatial)   float32
+env_id:       (N,)                  int64
+env_params/*: physical parameters per environment (metadata)
+```
 
 The `train/train_generic.py` and `test_time_compute/test_generic.py` entry points
 take a `--hf_repo_id` flag and download HDF5 files on first use.
