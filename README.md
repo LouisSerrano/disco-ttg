@@ -80,7 +80,7 @@ model = DISCOLitModule.load_from_checkpoint(ckpt)
 ```
 
 **Datasets** (HuggingFace Hub, one repo per equation):
-- `sogeeking/disco-ad` — advection-diffusion *(synthetic; generated on-the-fly)*
+- [`sogeeking/disco-ad`](https://huggingface.co/datasets/sogeeking/disco-ad) — advection-diffusion (deterministic seed=124 test set, 512 trajectories; the train pipeline still generates trajectories on the fly)
 - [`sogeeking/disco-combined`](https://huggingface.co/datasets/sogeeking/disco-combined) — combined equation (Burgers / heat / dispersion test+val splits)
 - [`sogeeking/disco-rd`](https://huggingface.co/datasets/sogeeking/disco-rd) — reaction-diffusion (Gray-Scott val splits)
 - [`sogeeking/disco-ns`](https://huggingface.co/datasets/sogeeking/disco-ns) — Navier-Stokes / Euler 2D (512-trajectory val split, ~6 GB)
