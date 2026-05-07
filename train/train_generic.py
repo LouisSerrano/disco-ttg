@@ -241,8 +241,12 @@ class DISCOLitModule(L.LightningModule):
         target = batch["output"]
         env_idx = batch["environment_idx"].long()
 
-        target_inp = rearrange(target[:, :-1], "b t c h -> (b t) 1 c h")
-        target_out = rearrange(target[:, 1:], "b t c h -> (b t) 1 c h")
+        # 1-step training: predict target[:, 1] from target[:, 0]. Keeps batch
+        # dim of theta and the ODE input aligned (DISCOHouse.solve_ode uses
+        # vmap over dim 0). For multi-step rollout you'd use the model's
+        # forward(...) directly, which auto-broadcasts theta across T.
+        target_inp = target[:, 0:1]  # (B, 1, C, *spatial)
+        target_out = target[:, 1:2]  # (B, 1, C, *spatial)
         state_labels = torch.tensor([0], device=input.device)
 
         optimizer = self.optimizers()
@@ -264,13 +268,12 @@ class DISCOLitModule(L.LightningModule):
             )
             self.update_codebook_ema(theta_latent[use_codebook_mask].detach(), cb_idx)
 
-        # Decode and roll out one ODE step.
         spatial = input.shape[3:]
         dim = len(spatial)
         theta = self.model.decode_theta(theta_to_use, dim)
         y_pred, metadata = self.model.solve_ode(
-            target_inp[:, 0],
-            theta,
+            target_inp[:, 0],   # (B, C, *spatial)
+            theta,              # (B, ...) — matches batch dim
             state_labels,
             dim,
             integration_time=self.model.default_integration_time,
@@ -278,7 +281,7 @@ class DISCOLitModule(L.LightningModule):
             metadata=encode_metadata,
         )
 
-        loss = self.loss_fn(y_pred, target_out)
+        loss = self.loss_fn(y_pred, target_out[:, 0])
         codebook_loss = torch.tensor(0.0, device=loss.device)
         if use_codebook_mask.any():
             cb_emb = self.codebook[env_idx[use_codebook_mask]]
@@ -306,12 +309,12 @@ class DISCOLitModule(L.LightningModule):
         target = batch["output"]
         env_idx = batch["environment_idx"].long()
 
-        target_inp = rearrange(target[:, :-1], "b t c h -> (b t) 1 c h")
-        target_out = rearrange(target[:, 1:], "b t c h -> (b t) 1 c h")
+        target_inp = target[:, 0:1]
+        target_out = target[:, 1:2]
         state_labels = torch.tensor([0], device=input.device)
 
         theta_latent, encode_metadata = self.model.encode_theta_latent(input, state_labels)
-        # Validation always uses the codebook (frozen) so behaviour is deterministic.
+        # Validation uses the codebook (frozen) so behaviour is deterministic.
         theta_to_use = self.codebook[env_idx]
 
         spatial = input.shape[3:]
@@ -326,7 +329,7 @@ class DISCOLitModule(L.LightningModule):
             n_future_steps=1,
             metadata=encode_metadata,
         )
-        loss = self.loss_fn(y_pred, target_out)
+        loss = self.loss_fn(y_pred, target_out[:, 0])
         self.log("val_loss", loss, on_epoch=True, prog_bar=True)
         return loss
 
