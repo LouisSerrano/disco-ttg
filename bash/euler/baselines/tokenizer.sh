@@ -16,6 +16,6 @@ module load nccl
 source $VENVDIR/disco/bin/activate 
 
 
-#python3 ZEBRA/train_vq.py --config-name vqvae2d
-#python ZEBRA/train.py --config-path=./configs/tokenizer --config-name=vqvae2d_euler_ns.yaml
-python ZEBRA/train.py --config-name=vqvae2d_euler_ns.yaml
+#python3 baselines/ZEBRA/train_vq.py --config-name vqvae2d
+#python baselines/ZEBRA/train.py --config-path=./configs/tokenizer --config-name=vqvae2d_euler_ns.yaml
+python baselines/ZEBRA/train.py --config-name=vqvae2d_euler_ns.yaml

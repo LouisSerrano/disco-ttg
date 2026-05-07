@@ -15,5 +15,5 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate 
 
-python GEPS/train_2d.py --config-name=euler_ns.yaml
+python baselines/GEPS/train_2d.py --config-name=euler_ns.yaml
 

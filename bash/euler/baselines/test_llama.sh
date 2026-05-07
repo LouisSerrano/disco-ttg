@@ -16,7 +16,7 @@ module load nccl
 source $VENVDIR/disco/bin/activate
 
 
-#python ZEBRA/test_zebra.py --dataset_name euler-ns --model_path /mnt/home/lserrano/ceph/zebra/llama/euler-ns/earthy-fire-25/last.ckpt --batch_size 16 
+#python baselines/ZEBRA/test_zebra.py --dataset_name euler-ns --model_path /mnt/home/lserrano/ceph/zebra/llama/euler-ns/earthy-fire-25/last.ckpt --batch_size 16 
 
-python ZEBRA/test_zebra.py --dataset_name euler-ns --model_path /mnt/home/lserrano/ceph/zebra/llama/euler-ns/quiet-meadow-26/last.ckpt --batch_size 16 
+python baselines/ZEBRA/test_zebra.py --dataset_name euler-ns --model_path /mnt/home/lserrano/ceph/zebra/llama/euler-ns/quiet-meadow-26/last.ckpt --batch_size 16 
 

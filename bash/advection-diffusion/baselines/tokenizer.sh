@@ -16,7 +16,7 @@ module load nccl
 source $VENVDIR/disco/bin/activate 
 
 
-python3 ZEBRA/train_vq.py \
+python3 baselines/ZEBRA/train_vq.py \
   data.dataset_name=advection-diffusion \
   model.layers='[residual, compress_space, compress_space, compress_space, residual]' \
   model.codebook_size=256

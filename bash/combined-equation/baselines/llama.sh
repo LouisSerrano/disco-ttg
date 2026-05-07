@@ -15,4 +15,4 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate 
 
-python3 ZEBRA/pretrain_llama.py data.tokenizer_path=/mnt/home/lserrano/ceph/zebra/tokenizer/combined-equation/sandy-gorge-62/last.ckpt  data.dataset_name=combined-equation training.tokenize_on_the_fly=False data.n_input_frames=16 data.n_output_frames=50 data.slice_size=66
+python3 baselines/ZEBRA/pretrain_llama.py data.tokenizer_path=/mnt/home/lserrano/ceph/zebra/tokenizer/combined-equation/sandy-gorge-62/last.ckpt  data.dataset_name=combined-equation training.tokenize_on_the_fly=False data.n_input_frames=16 data.n_output_frames=50 data.slice_size=66

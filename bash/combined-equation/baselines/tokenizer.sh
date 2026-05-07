@@ -16,4 +16,4 @@ module load nccl
 source $VENVDIR/disco/bin/activate 
 
 
-python3 ZEBRA/train_vq.py data.dataset_name="combined-equation" 
+python3 baselines/ZEBRA/train_vq.py data.dataset_name="combined-equation" 

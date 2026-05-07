@@ -15,5 +15,5 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate 
 
-#python3 MPP/train_gray_scott.py 
-python MPP/train_2d.py --config-name=mpp_euler_ns.yaml
+#python3 baselines/MPP/train_gray_scott.py 
+python baselines/MPP/train_2d.py --config-name=mpp_euler_ns.yaml

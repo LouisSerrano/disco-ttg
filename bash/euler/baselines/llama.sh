@@ -15,7 +15,7 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate
 
-python3 ZEBRA/pretrain_llama.py \
+python3 baselines/ZEBRA/pretrain_llama.py \
   --config-name=euler_ns.yaml \
   data.tokenizer_path=/mnt/home/lserrano/ceph/zebra/tokenizer/rd/rural-sky-68/last.ckpt \
   data.dataset_name=euler-ns \

@@ -20,11 +20,7 @@ import json
 import argparse
 import matplotlib.pyplot as plt
 from datetime import datetime
-import sys
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _HERE)
-sys.path.insert(0, os.path.dirname(_HERE))
 from src.utils.advection_diffusion import FractaloidPhase
 
 
@@ -349,7 +345,7 @@ def main():
     parser.add_argument('--n_samples', type=int, default=8,
                         help='Number of trajectories per epsilon (use 8 for preview, 128 for full)')
     parser.add_argument('--output_dir', type=str,
-                        default='./test-time-compute/results/perturbation_preview')
+                        default='./test_time_compute/results/perturbation_preview')
     parser.add_argument('--L', type=float, default=16.0, help='Domain length')
     parser.add_argument('--nx', type=int, default=256, help='Spatial resolution')
     parser.add_argument('--nt', type=int, default=100, help='Number of output time steps')

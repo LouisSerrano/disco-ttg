@@ -16,4 +16,4 @@ module load nccl
 source $VENVDIR/disco/bin/activate 
 
 
-python3 GEPS/train_advection_diffusion.py 
+python3 baselines/GEPS/train_advection_diffusion.py 

@@ -1,22 +1,18 @@
 import torch
 import argparse
 import os
-import sys
 import time
 from datetime import datetime
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _HERE)
-sys.path.insert(0, os.path.dirname(_HERE))
 
-from ttc_utils import (
+from test_time_compute.ttc_utils import (
     load_model_from_checkpoint, 
     create_dataset_for_equation,
     save_results,
     TRAINING_FILES,
     DEVICE
 )
-from ttc_methods import (
+from test_time_compute.ttc_methods import (
     test_direct_prediction,
     encode_operators_from_training_data,
     greedy_operator_selection,
@@ -193,7 +189,7 @@ def main():
     grad_results = []
     for i in range(args.num_samples):
         with torch.no_grad():
-            from ttc_methods import multi_operator_splitting
+            from test_time_compute.ttc_methods import multi_operator_splitting
             pred = multi_operator_splitting(
                 model, theta_latents,
                 test_input[i:i+1, -1],
@@ -202,7 +198,7 @@ def main():
                 refinement_factor=GRADIENT_REFINEMENT,
                 splitting_method=GRADIENT_SPLITTING
             )
-            from ttc_utils import get_relative_l2_error
+            from test_time_compute.ttc_utils import get_relative_l2_error
             error = get_relative_l2_error()(pred, test_target[i:i+1]).item()
             
             result_dict = {

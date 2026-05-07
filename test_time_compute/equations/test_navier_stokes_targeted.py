@@ -45,16 +45,13 @@ logger = logging.getLogger(__name__)
 # Force unbuffered output
 sys.stdout.reconfigure(line_buffering=True)
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _HERE)
-sys.path.insert(0, os.path.dirname(_HERE))
 
-from ttc_utils import (
+from test_time_compute.ttc_utils import (
     save_results,
     DEVICE,
     get_relative_l2_error
 )
-from ttc_methods import (
+from test_time_compute.ttc_methods import (
     greedy_operator_selection,
     random_operator_selection_batch,
     gradient_selection_multi_operator,
@@ -239,7 +236,7 @@ def run_direct_method(model, input_seq, target_seq, dt):
 
 def run_greedy_method(model, theta_latent_operators, input_seq, target_seq, args, dt, operator_metadata):
     """Run greedy operator selection method."""
-    from ttc_methods import greedy_operator_selection
+    from test_time_compute.ttc_methods import greedy_operator_selection
 
     composition, _, pred = greedy_operator_selection(
         model, theta_latent_operators,

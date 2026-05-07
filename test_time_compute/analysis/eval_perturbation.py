@@ -12,14 +12,10 @@ import json
 import time
 import numpy as np
 from datetime import datetime
-import sys
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _HERE)
-sys.path.insert(0, os.path.dirname(_HERE))
 
-from ttc_utils import DEVICE
-from ttc_methods import (
+from test_time_compute.ttc_utils import DEVICE
+from test_time_compute.ttc_methods import (
     test_direct_prediction,
     beam_search_operator_selection_batch,
 )
@@ -40,7 +36,7 @@ def main():
     parser.add_argument('--model_path', type=str, required=True)
     parser.add_argument('--data_dir', type=str, required=True,
                         help='Directory with perturbation_eps*.npz files')
-    parser.add_argument('--output_dir', type=str, default='./test-time-compute/results/rebuttal/perturbation_eval')
+    parser.add_argument('--output_dir', type=str, default='./test_time_compute/results/rebuttal/perturbation_eval')
     parser.add_argument('--beam_width', type=int, default=4)
     parser.add_argument('--beam_batch_size', type=int, default=32)
     parser.add_argument('--max_operators', type=int, default=5)

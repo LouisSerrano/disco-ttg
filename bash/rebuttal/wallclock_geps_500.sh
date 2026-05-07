@@ -15,7 +15,7 @@ module load nccl
 source $VENVDIR/disco/bin/activate
 
 export PYTHONPATH=/mnt/home/lserrano/disco-ball/GEPS:$PYTHONPATH
-python3 GEPS/test_geps_inference.py \
+python3 baselines/GEPS/test_geps_inference.py \
     --model_path /mnt/home/lserrano/ceph/geps/advection-diffusion/jumping-shadow-48/last.ckpt \
     --equation_type advection_diffusion \
     --experiment E_AD_ALL \

@@ -5,19 +5,15 @@ import os
 import time
 from datetime import datetime
 from torch.utils.data import DataLoader
-import sys
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _HERE)
-sys.path.insert(0, os.path.dirname(_HERE))
 
-from ttc_utils import (
+from test_time_compute.ttc_utils import (
     save_results,
     CombinedHDF5TemporalDataset,
     DEVICE,
     plot_results
 )
-from ttc_methods import (
+from test_time_compute.ttc_methods import (
     test_direct_prediction,
     encode_operators_from_training_data,
     greedy_operator_selection,
@@ -58,7 +54,7 @@ def load_model_from_checkpoint(checkpoint_path):
 def main():
     parser = argparse.ArgumentParser(description='Test time compute for combined equation')
     parser.add_argument('--model_path', type=str, required=True, help='Path to model checkpoint')
-    parser.add_argument('--output_dir', type=str, default='./test-time-compute/results', help='Output directory')
+    parser.add_argument('--output_dir', type=str, default='./test_time_compute/results', help='Output directory')
     parser.add_argument('--num_operators', type=int, default=20, help='Number of operators to encode')
     parser.add_argument('--num_samples', type=int, default=32, help='Number of test samples to evaluate')
     parser.add_argument('--experiment', type=str, required=True,

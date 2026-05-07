@@ -15,4 +15,4 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate 
 
-python3 GEPS/train_gray_scott.py 
+python3 baselines/GEPS/train_gray_scott.py 

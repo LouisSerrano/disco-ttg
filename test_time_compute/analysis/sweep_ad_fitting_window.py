@@ -16,14 +16,10 @@ import json
 import time
 import numpy as np
 from datetime import datetime
-import sys
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _HERE)
-sys.path.insert(0, os.path.dirname(_HERE))
 
-from ttc_utils import DEVICE, get_relative_l2_error
-from ttc_methods import beam_search_operator_selection_batch
+from test_time_compute.ttc_utils import DEVICE, get_relative_l2_error
+from test_time_compute.ttc_methods import beam_search_operator_selection_batch
 from train.train import DISCOLitModule, TemporalBatchDatasetFly
 
 
@@ -39,7 +35,7 @@ def load_model_from_checkpoint(checkpoint_path):
 def main():
     parser = argparse.ArgumentParser(description='Fitting window length sweep')
     parser.add_argument('--model_path', type=str, required=True)
-    parser.add_argument('--output_dir', type=str, default='./test-time-compute/results/fitting_window_sweep')
+    parser.add_argument('--output_dir', type=str, default='./test_time_compute/results/fitting_window_sweep')
     parser.add_argument('--experiment', type=str, default='E_AD_ALL',
                         choices=['E_AD_ALL', 'E_AD_v', 'E_AD_D'])
     parser.add_argument('--window_sizes', type=int, nargs='+', default=[2, 4, 8, 16, 32],

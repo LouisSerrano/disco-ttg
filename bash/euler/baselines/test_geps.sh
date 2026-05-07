@@ -15,6 +15,6 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate 
 
-#python GEPS/train_2d.py --config-name=euler_ns.yaml
-python GEPS/test_navier_stokes.py --model_path /mnt/home/lserrano/ceph/geps/euler-ns/decent-dawn-11/last.ckpt --mode optimize --n_optimization_steps 100  --batch_size 4
+#python baselines/GEPS/train_2d.py --config-name=euler_ns.yaml
+python baselines/GEPS/test_navier_stokes.py --model_path /mnt/home/lserrano/ceph/geps/euler-ns/decent-dawn-11/last.ckpt --mode optimize --n_optimization_steps 100  --batch_size 4
 

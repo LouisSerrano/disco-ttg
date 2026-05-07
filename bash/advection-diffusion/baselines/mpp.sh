@@ -17,4 +17,4 @@ source $VENVDIR/disco/bin/activate
 
 
 T=10
-python3 MPP/train_advection_diffusion.py 
+python3 baselines/MPP/train_advection_diffusion.py 

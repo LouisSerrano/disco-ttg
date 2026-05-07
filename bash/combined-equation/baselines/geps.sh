@@ -16,4 +16,4 @@ module load nccl
 source $VENVDIR/disco/bin/activate 
 
 
-python3 GEPS/train_combined_equation.py 
+python3 baselines/GEPS/train_combined_equation.py 

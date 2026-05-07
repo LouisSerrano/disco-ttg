@@ -4,18 +4,14 @@ import os
 import time
 from datetime import datetime
 from torch.utils.data import DataLoader
-import sys
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _HERE)
-sys.path.insert(0, os.path.dirname(_HERE))
 
-from ttc_utils import (
+from test_time_compute.ttc_utils import (
     save_results,
     DEVICE,
     get_relative_l2_error,
 )
-from ttc_methods import (
+from test_time_compute.ttc_methods import (
     test_direct_prediction,
     encode_operators_from_training_data,
     greedy_operator_selection,

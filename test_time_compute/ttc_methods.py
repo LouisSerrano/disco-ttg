@@ -2,14 +2,12 @@
 import torch
 import random
 import logging
-import os
 import sys
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from ttc_utils import DEVICE, N_INPUT_FRAMES, N_OUTPUT_FRAMES, get_relative_l2_error
+from test_time_compute.ttc_utils import DEVICE, N_INPUT_FRAMES, N_OUTPUT_FRAMES, get_relative_l2_error
 from einops import rearrange
 
 # Configure logging

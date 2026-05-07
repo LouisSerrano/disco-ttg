@@ -15,7 +15,7 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate 
 
-python3 ZEBRA/pretrain_llama.py \
+python3 baselines/ZEBRA/pretrain_llama.py \
   data.tokenizer_path=/mnt/home/lserrano/ceph/zebra/tokenizer/rd/rural-sky-68/last.ckpt \
   data.dataset_name=gray-scott \
   model.max_length=16384 \
