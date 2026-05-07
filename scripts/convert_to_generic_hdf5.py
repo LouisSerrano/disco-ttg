@@ -98,30 +98,32 @@ def convert_rd(args):
 
 
 def convert_ns(args):
-    """2D Navier-Stokes format: 3 equation types per file (diffusion/euler/navier_stokes)."""
+    """2D Navier-Stokes format: 3 equation types per file (diffusion/euler/navier_stokes).
+
+    Returns sentinel values that signal main() to take the streaming write path,
+    since reading all three (1024, 50, 256, 256) float32 arrays into memory at
+    once peaks around ~40 GB and OOMs on most nodes.
+    """
     eq_names = ["diffusion", "euler", "navier_stokes"]
-    pieces = []
-    env_pieces = []
+    sections = []  # list of (eq_idx, n_samples, dataset_name)
     with h5py.File(args.input, "r") as fin:
+        sample_shape = None
         for i, name in enumerate(eq_names):
             if name not in fin:
                 print(f"  WARN: '{name}' not found in file, skipping")
                 continue
-            arr = fin[name][:]
-            print(f"  {name}: {arr.shape}")
-            pieces.append(arr)
-            env_pieces.append(np.full(arr.shape[0], i, dtype=np.int64))
-
-    if not pieces:
+            shape = fin[name].shape
+            print(f"  {name}: {shape}")
+            sections.append((i, shape[0], name))
+            if sample_shape is None:
+                sample_shape = shape[1:]
+            elif sample_shape != shape[1:]:
+                raise ValueError(f"NS arrays have inconsistent shapes: {sample_shape} vs {shape[1:]}")
+    if not sections:
         raise ValueError("No NS equation groups found in file.")
 
-    trajs = np.concatenate(pieces, axis=0)  # (N_total, T, H, W)
-    if trajs.ndim == 4:
-        trajs = trajs[:, :, None, :, :]  # add channel dim
-    trajs = trajs.astype(np.float32, copy=False)
-    env_id = np.concatenate(env_pieces, axis=0)
-    eq_present = np.array([eq_names[i] for i in sorted(set(env_id.tolist()))], dtype="S")
-    return trajs, env_id, {"equation_names": eq_present}, {}
+    # Sentinel return: caller will detect this and stream-write per equation.
+    return ("__NS_STREAM__", args.input, sections, sample_shape, eq_names)
 
 
 CONVERTERS = {
@@ -146,16 +148,54 @@ def main():
     args = p.parse_args()
 
     print(f"Reading {args.input} (format={args.source_format}) ...")
-    trajs, env_id, env_params, meta = CONVERTERS[args.source_format](args)
-    print(f"  unique environments: {len(set(env_id.tolist()))}  |  trajectories: {trajs.shape}")
+    result = CONVERTERS[args.source_format](args)
 
     os.makedirs(os.path.dirname(os.path.abspath(args.output)) or ".", exist_ok=True)
-    print(f"Writing {args.output} ...")
     comp_kwargs = (
         {"compression": "gzip", "compression_opts": 4} if args.compression == "gzip"
         else {"compression": "lzf"} if args.compression == "lzf"
         else {}
     )
+
+    # NS streaming path: copy one equation at a time so we never hold ~40 GB at once.
+    if isinstance(result, tuple) and result and result[0] == "__NS_STREAM__":
+        _, src_path, sections, sample_shape, eq_names = result
+        N_total = sum(n for _, n, _ in sections)
+        T = sample_shape[0]
+        spatial = sample_shape[1:]
+        print(f"  streaming write: total {N_total} trajectories, shape (T={T}, *{spatial})")
+        print(f"Writing {args.output} ...")
+        with h5py.File(args.output, "w") as fout, h5py.File(src_path, "r") as fin:
+            traj_ds = fout.create_dataset(
+                "trajectories",
+                shape=(N_total, T, 1, *spatial),
+                dtype=np.float32,
+                chunks=(1, T, 1, *spatial),
+                **comp_kwargs,
+            )
+            env_id = np.empty(N_total, dtype=np.int64)
+            offset = 0
+            CHUNK = 32  # samples per IO transaction
+            for eq_idx, n_samples, name in sections:
+                print(f"  copying {name} ({n_samples} samples) ...")
+                for start in range(0, n_samples, CHUNK):
+                    end = min(start + CHUNK, n_samples)
+                    block = fin[name][start:end].astype(np.float32, copy=False)
+                    traj_ds[offset + start : offset + end, :, 0, :, :] = block
+                env_id[offset : offset + n_samples] = eq_idx
+                offset += n_samples
+            fout.create_dataset("env_id", data=env_id)
+            eq_present = np.array(
+                [eq_names[i] for i in sorted({s[0] for s in sections})], dtype="S"
+            )
+            fout.create_dataset("env_params/equation_names", data=eq_present)
+        print("Done.")
+        return
+
+    # In-memory path (combined / rd)
+    trajs, env_id, env_params, meta = result
+    print(f"  unique environments: {len(set(env_id.tolist()))}  |  trajectories: {trajs.shape}")
+    print(f"Writing {args.output} ...")
     with h5py.File(args.output, "w") as fout:
         fout.create_dataset("trajectories", data=trajs, **comp_kwargs)
         fout.create_dataset("env_id", data=env_id)
