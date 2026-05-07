@@ -61,13 +61,32 @@ See each subfolder's README for the specific paths to swap.
 
 ## Checkpoints & Datasets
 
-<!-- TODO: Add links to pretrained checkpoints and datasets -->
+**Pretrained checkpoints**: [`sogeeking/disco-models`](https://huggingface.co/sogeeking/disco-models)
 
-**Checkpoints** will be made available at: `[link]`
+| Equation | Path in repo |
+|---|---|
+| Advection-diffusion | `advection-diffusion/last.ckpt` |
+| Combined equation | `combined-equation/last.ckpt` |
+| Reaction-diffusion (Gray-Scott) | `reaction-diffusion/last.ckpt` |
+| Navier-Stokes / Euler | `navier-stokes/best-checkpoint.ckpt` |
 
-**Datasets:**
-- Advection-diffusion: generated on-the-fly (see `src/utils/advection_diffusion.py`)
-- Navier-Stokes (Euler): `[link]`
+```python
+from huggingface_hub import hf_hub_download
+ckpt = hf_hub_download(repo_id="sogeeking/disco-models",
+                       filename="advection-diffusion/last.ckpt")
+
+from train.train_generic import DISCOLitModule
+model = DISCOLitModule.load_from_checkpoint(ckpt)
+```
+
+**Datasets** (HuggingFace Hub, one repo per equation):
+- `sogeeking/disco-ad` — advection-diffusion *(coming soon)*
+- `sogeeking/disco-combined` — combined equation *(coming soon)*
+- `sogeeking/disco-rd` — reaction-diffusion *(coming soon)*
+- `sogeeking/disco-ns` — Navier-Stokes / Euler *(coming soon)*
+
+The `train/train_generic.py` and `test_time_compute/test_generic.py` entry points
+take a `--hf_repo_id` flag and download HDF5 files on first use.
 
 ## Training
 
