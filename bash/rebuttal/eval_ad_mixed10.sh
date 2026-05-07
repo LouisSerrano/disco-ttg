@@ -24,7 +24,7 @@ for EXP in E_AD_ALL E_AD_v E_AD_D; do
     echo "=========================================="
     echo "[$EXP] mixed1.0 model — PURE dict"
     echo "=========================================="
-    python3 test_time_compute/test_advection_diffusion.py \
+    python3 test_time_compute/equations/test_advection_diffusion.py \
         --model_path $MODEL_PATH \
         --experiment $EXP \
         --methods direct beam \
@@ -39,7 +39,7 @@ for EXP in E_AD_ALL E_AD_v E_AD_D; do
     echo "=========================================="
     echo "[$EXP] mixed1.0 model — MIXED dict (ratio=1.0)"
     echo "=========================================="
-    python3 test_time_compute/test_advection_diffusion.py \
+    python3 test_time_compute/equations/test_advection_diffusion.py \
         --model_path $MODEL_PATH \
         --experiment $EXP \
         --methods direct beam \

@@ -19,7 +19,7 @@ source $VENVDIR/disco/bin/activate
 MODEL_PATH=/mnt/home/lserrano/ceph/disco/outputs/DISCO_advection-diffusion_solverrk4_adjFalse_h128_t2_steps1_initTrue_bs64_lr0.0005_ctxTrue_noise0_inframes16_outframes16_T10/last-v1.ckpt
 
 # Dictionary subsampling sweep on E_AD_ALL (beam search)
-python3 test_time_compute/sweep_ad_subsampling.py \
+python3 test_time_compute/analysis/sweep_ad_subsampling.py \
     --model_path $MODEL_PATH \
     --experiment E_AD_ALL \
     --dict_sizes 16 32 64 128 256 \

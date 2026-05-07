@@ -14,7 +14,7 @@ module load cudnn
 module load nccl
 source $VENVDIR/disco/bin/activate
 
-python3 test_time_compute/eval_perturbation.py \
+python3 test_time_compute/analysis/eval_perturbation.py \
     --model_path /mnt/home/lserrano/ceph/disco/outputs/DISCO_advection-diffusion_solverrk4_adjFalse_h128_t2_steps1_initTrue_bs64_lr0.0005_ctxTrue_noise0_inframes16_outframes16_T10/last-v1.ckpt \
     --data_dir ./test_time_compute/results/perturbation_data \
     --output_dir ./test_time_compute/results/rebuttal/perturbation_eval/eps_0.5 \

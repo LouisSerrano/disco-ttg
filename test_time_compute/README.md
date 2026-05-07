@@ -2,15 +2,26 @@
 
 Test-time inference and evaluation. Loads a trained DISCO checkpoint and runs operator-selection methods on held-out test sets.
 
-## Core modules
+## Layout
+
+```
+test_time_compute/
+├── ttc_methods.py / ttc_utils.py / ttc_methods_flops.py   # core utilities (top level for easy import)
+├── test_generic.py                                         # ★ HF-friendly entry point
+├── equations/         # per-equation evaluation scripts
+└── analysis/          # sweeps, scaling-law, plotting, perturbation evals
+```
+
+## Core modules (top level)
 
 | File | Purpose |
 |---|---|
 | `ttc_utils.py` | Dataset/checkpoint loading, metrics, result saving |
 | `ttc_methods.py` | Operator-selection methods: greedy, random, beam search, gradient-based |
 | `ttc_methods_flops.py` | FLOP-counting variant of `ttc_methods.py` (uses `fvcore`) |
+| `test_generic.py` | Generic entry point (operators from codebook OR encoder) |
 
-## Per-equation evaluation scripts
+## `equations/` — per-equation evaluation
 
 | Script | Equation |
 |---|---|
@@ -22,7 +33,7 @@ Test-time inference and evaluation. Loads a trained DISCO checkpoint and runs op
 | `test_navier_stokes_targeted.py` | Navier-Stokes with targeted perturbations |
 | `test_template.py` | Template for adding a new equation |
 
-## Sweeps and analysis
+## `analysis/` — sweeps, scaling laws, plotting
 
 | Script | Purpose |
 |---|---|
@@ -39,7 +50,7 @@ Test-time inference and evaluation. Loads a trained DISCO checkpoint and runs op
 
 ```bash
 # Direct invocation
-python test-time-compute/test_advection_diffusion.py \
+python test_time_compute/equations/test_advection_diffusion.py \
     --model_path /path/to/best-checkpoint.ckpt \
     --experiment E_AD_v \
     --methods beam --beam_width 3
@@ -48,13 +59,9 @@ python test-time-compute/test_advection_diffusion.py \
 sbatch bash/advection-diffusion/test/beam_test.sh
 ```
 
-The path-setup block at the top of each script makes imports work from any cwd:
-
-```python
-_HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _HERE)                  # so ttc_utils/ttc_methods resolve
-sys.path.insert(0, os.path.dirname(_HERE)) # so src.* resolves
-```
+Imports of the form `from test_time_compute.ttc_utils import …` work because
+`pip install -e .` registers `test_time_compute` as a Python package, and its
+`__init__.py` ensures the repo root is on `sys.path[0]`.
 
 ## Hardcoded paths
 

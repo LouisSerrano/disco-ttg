@@ -115,10 +115,10 @@ See `bash/` for SLURM submission scripts used in the paper.
 
 ```bash
 # Test-time compute evaluation on advection-diffusion
-python test_time_compute/test_advection_diffusion.py
+python test_time_compute/equations/test_advection_diffusion.py
 
 # Navier-Stokes evaluation
-python test_time_compute/test_navier_stokes.py
+python test_time_compute/equations/test_navier_stokes.py
 ```
 
 ## Baselines

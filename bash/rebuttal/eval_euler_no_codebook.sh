@@ -22,7 +22,7 @@ OUTPUT_DIR=./test_time_compute/results/rebuttal/euler_no_codebook
 echo "=========================================="
 echo "Evaluating Euler no-codebook model"
 echo "=========================================="
-python test_time_compute/test_navier_stokes_targeted.py \
+python test_time_compute/equations/test_navier_stokes_targeted.py \
     --model_path $MODEL_PATH \
     --method beam \
     --splitting_method strang \

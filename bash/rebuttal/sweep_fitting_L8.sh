@@ -14,7 +14,7 @@ module load cudnn
 module load nccl
 source $VENVDIR/disco/bin/activate
 
-python3 test_time_compute/sweep_ad_fitting_window.py \
+python3 test_time_compute/analysis/sweep_ad_fitting_window.py \
     --model_path /mnt/home/lserrano/ceph/disco/outputs/DISCO_advection-diffusion_solverrk4_adjFalse_h128_t2_steps1_initTrue_bs64_lr0.0005_ctxTrue_noise0_inframes16_outframes16_T10/last-v1.ckpt \
     --experiment E_AD_ALL \
     --window_sizes 8 \

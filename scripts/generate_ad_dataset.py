@@ -5,7 +5,7 @@ synthesised on the fly via TemporalBatchDatasetFly (in train/train.py) using
 Fractaloid initial conditions and the analytical Fourier solution.
 
 This script reproduces a deterministic test set with a fixed seed (default 124,
-the same as test_time_compute/test_advection_diffusion.py) so users can download
+the same as test_time_compute/equations/test_advection_diffusion.py) so users can download
 it from HuggingFace instead of regenerating locally.
 
 Usage:
@@ -51,7 +51,7 @@ def main():
     p.add_argument("--fractal_degree", type=int, default=8)
     p.add_argument("--fractal_power_range", type=int, default=2)
     p.add_argument("--seed", type=int, default=124,
-                   help="Default 124 matches test_time_compute/test_advection_diffusion.py")
+                   help="Default 124 matches test_time_compute/equations/test_advection_diffusion.py")
     p.add_argument("--n_env_bins", type=int, default=64,
                    help="Quantize (v, D) into a grid of n_env_bins x n_env_bins for env_id")
     args = p.parse_args()
