@@ -21,8 +21,6 @@ Hydra + PyTorch Lightning training scripts. Each script is paired with a config 
 | `train_combined_ablations.py`, `train_ablations.py`, `train_ablations_unet.py` | Architectural ablations |
 | `train_combined_curriculum.py` | Curriculum-learning variant |
 | `train_combined_coda.py` | CoDA variant |
-| `train_combined_scalar.py` | Scalar-output variant |
-| `train_combined_ssl.py` | Self-supervised pretraining |
 | `train_combined_vae.py`, `train_combined_vqvae.py` | VAE / VQ-VAE variants |
 | `train_rd_aggregate.py` | Reaction-diffusion aggregated |
 
