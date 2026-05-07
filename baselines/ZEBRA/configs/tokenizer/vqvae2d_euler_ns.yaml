@@ -3,9 +3,9 @@
 data:
   dataset_name: "euler-ns"
   # Euler/NS data configuration
-  file_dir: "/mnt/home/lserrano/ceph/data/euler_ns_short"  # Directory with trajectories_gpu*.h5 files
+  file_dir: "./datasets/euler_ns_short"  # Directory with trajectories_gpu*.h5 files
   num_gpus: 8   # Number of GPU shards
-  output_dir: "/mnt/home/lserrano/ceph/zebra/tokenizer/"
+  output_dir: "./outputs/zebra/tokenizer/"
   n_input_frames: 1
   n_output_frames: 1
   sub_x: 1

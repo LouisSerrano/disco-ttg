@@ -23,21 +23,21 @@ BATCH_SIZE = 32
 
 # File paths for datasets
 VALIDATION_FILES = {
-    'advection_diffusion': '/mnt/home/lserrano/disco-ttg/datasets/advection-diffusion/validation.h5',
-    'combined_equation': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/validation.h5',
-    'reaction_diffusion': '/mnt/home/lserrano/disco-ttg/datasets/reaction-diffusion/validation.h5'
+    'advection_diffusion': './datasets/advection-diffusion/validation.h5',
+    'combined_equation': './datasets/combined_equation/validation.h5',
+    'reaction_diffusion': './datasets/reaction-diffusion/validation.h5'
 }
 
 TEST_FILES = {
-    'advection_diffusion': '/mnt/home/lserrano/disco-ttg/datasets/advection-diffusion/test.h5',
-    'combined_equation': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/test.h5',
-    'reaction_diffusion': '/mnt/home/lserrano/disco-ttg/datasets/reaction-diffusion/test.h5'
+    'advection_diffusion': './datasets/advection-diffusion/test.h5',
+    'combined_equation': './datasets/combined_equation/test.h5',
+    'reaction_diffusion': './datasets/reaction-diffusion/test.h5'
 }
 
 TRAINING_FILES = {
-    'advection_diffusion': '/mnt/home/lserrano/disco-ttg/datasets/advection-diffusion/training.h5',
-    'combined_equation': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/training.h5',
-    'reaction_diffusion': '/mnt/home/lserrano/disco-ttg/datasets/reaction-diffusion/training.h5'
+    'advection_diffusion': './datasets/advection-diffusion/training.h5',
+    'combined_equation': './datasets/combined_equation/training.h5',
+    'reaction_diffusion': './datasets/reaction-diffusion/training.h5'
 }
 
 

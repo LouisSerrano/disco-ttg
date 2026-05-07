@@ -373,7 +373,7 @@ def main():
                         help='Seed for deterministic sample selection (default: 42)')
 
     # Dataset parameters
-    parser.add_argument('--file_dir', type=str, default='/mnt/home/lserrano/ceph/data/euler_ns_short/',
+    parser.add_argument('--file_dir', type=str, default='./datasets/euler_ns_short/',
                         help='Path to data directory')
     parser.add_argument('--num_gpus', type=int, default=8,
                         help='Number of GPU files (default: 8)')

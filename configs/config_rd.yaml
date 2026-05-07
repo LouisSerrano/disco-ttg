@@ -25,17 +25,17 @@ data:
   dataset_name: "rd"
   # HDF5 file configuration - separate files for train/val/test
   train_hdf5_files: 
-    - "/mnt/home/lserrano/gray-scott-python/data/feed_20params_512traj_each.hdf5"
-    - "/mnt/home/lserrano/gray-scott-python/data/kill_20params_512traj_each.hdf5"
+    - "${oc.env:DISCO_RD_DATA,datasets/gray-scott}/feed_20params_512traj_each.hdf5"
+    - "${oc.env:DISCO_RD_DATA,datasets/gray-scott}/kill_20params_512traj_each.hdf5"
   val_hdf5_files:
-    - "/mnt/home/lserrano/gray-scott-python/data/val_feed_20params_8traj_each.hdf5"
-    - "/mnt/home/lserrano/gray-scott-python/data/val_kill_20params_8traj_each.hdf5"
+    - "${oc.env:DISCO_RD_DATA,datasets/gray-scott}/val_feed_20params_8traj_each.hdf5"
+    - "${oc.env:DISCO_RD_DATA,datasets/gray-scott}/val_kill_20params_8traj_each.hdf5"
   test_hdf5_files:
-    - "/mnt/home/lserrano/gray-scott-python/data/val_feed_20params_8traj_each.hdf5"
-    - "/mnt/home/lserrano/gray-scott-python/data/val_kill_20params_8traj_each.hdf5"
+    - "${oc.env:DISCO_RD_DATA,datasets/gray-scott}/val_feed_20params_8traj_each.hdf5"
+    - "${oc.env:DISCO_RD_DATA,datasets/gray-scott}/val_kill_20params_8traj_each.hdf5"
   # Legacy support - will be ignored if train_hdf5_files is present
 
-  output_dir: "/mnt/home/lserrano/disco-ttg/outputs/"
+  output_dir: "${oc.env:DISCO_OUTPUTS,outputs}/"
   sub_x: 1
   sub_t: 1
   n_input_frames: 16
@@ -68,6 +68,6 @@ model:
 
 test:
   dataset_name: "euler_hdf5"
-  results_dir: "/mnt/home/lserrano/disco-ttg/results/"
+  results_dir: "${oc.env:DISCO_RESULTS,results}/"
   splits: ["train", "val", "test"]
   num_steps: 1

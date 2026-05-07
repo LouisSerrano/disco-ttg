@@ -10,7 +10,7 @@ from einops import rearrange
 import copy
 import csv
 
-sys.path.append("/mnt/home/lserrano/disco-ttg/test_time_compute")
+sys.path.append("./disco-ttg/test_time_compute")
 
 from ttc_utils import (
     save_results,
@@ -477,35 +477,35 @@ def main():
     elif args.equation_type == 'combined_equation':
         EXPERIMENT_FILES = {
             'E_BG': {
-                'train': '/mnt/home/lserrano/ceph/E_BG_train_gridparam512.h5',
+                'train': './datasets/E_BG_train_gridparam512.h5',
             },
             'E_ED': {
-                'train': '/mnt/home/lserrano/ceph/E_ED_train_gridparam512.h5',
+                'train': './datasets/E_ED_train_gridparam512.h5',
             },
             'E_HE': {
-                'train': '/mnt/home/lserrano/ceph/E_HE_train_gridparam512.h5',
+                'train': './datasets/E_HE_train_gridparam512.h5',
             },
             'E_ALL': {
-                'train': '/mnt/home/lserrano/ceph/E_ALL_train_gridparam512.h5',
+                'train': './datasets/E_ALL_train_gridparam512.h5',
             },
             'E_HEAT':{
-                'train': '/mnt/home/lserrano/ceph/E_HEAT_train_gridparam8192.h5',
+                'train': './datasets/E_HEAT_train_gridparam8192.h5',
             },
             'E_EULER':
             {
-                'train': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_valid.h5',
+                'train': './datasets/combined_equation/E_EULER_valid.h5',
             },
              'E_EULER_OOD': {
-                'train': '/mnt/home/lserrano/ceph/E_EULER_OOD_train_envsize16.h5',},
+                'train': './datasets/E_EULER_OOD_train_envsize16.h5',},
             'E_DISP_OOD': {
-            'train': '/mnt/home/lserrano/ceph/E_DISP_OOD_train_envsize16.h5',
+            'train': './datasets/E_DISP_OOD_train_envsize16.h5',
             }
         }
         N_INPUT_FRAMES = 16
         N_OUTPUT_FRAMES = 50
         
     else:  # gray_scott
-        TEST_FILES = ["/mnt/home/lserrano/gray-scott-python/data/gray_scott_10x10_params_16traj_each.hdf5"]
+        TEST_FILES = ["./datasets/gray-scott/gray_scott_10x10_params_16traj_each.hdf5"]
         N_INPUT_FRAMES = 16
         N_OUTPUT_FRAMES = 32
 

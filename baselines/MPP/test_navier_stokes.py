@@ -6,8 +6,8 @@ from datetime import datetime
 from torch.utils.data import DataLoader
 import sys
 
-sys.path.append("/mnt/home/lserrano/disco-ttg/")
-sys.path.append("/mnt/home/lserrano/disco-ttg/test_time_compute")
+sys.path.append("./disco-ttg/")
+sys.path.append("./disco-ttg/test_time_compute")
 
 from ttc_utils import (
     save_results,
@@ -94,7 +94,7 @@ def main():
     parser.add_argument('--output_dir', type=str, default='./results', help='Output directory')
     parser.add_argument('--num_samples', type=int, default=32, help='Number of test samples to evaluate')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for evaluation')
-    parser.add_argument('--file_dir', type=str, default='/mnt/home/lserrano/ceph/data/euler_ns_short/',
+    parser.add_argument('--file_dir', type=str, default='./datasets/euler_ns_short/',
                         help='Path to data directory')
     parser.add_argument('--num_gpus', type=int, default=8, help='Number of GPU files')
     parser.add_argument('--n_input_frames', type=int, default=16, help='Number of input frames')

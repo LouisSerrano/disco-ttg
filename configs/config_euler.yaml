@@ -29,9 +29,9 @@ training:
 data:
   dataset_name: "euler"
   # Data file configuration - path to directory with trajectories_gpu*.h5 files
-  file_dir: "/mnt/home/lserrano/ceph/data/euler_ns_short/"
+  file_dir: "${oc.env:DISCO_NS_DATA,datasets/euler_ns_short}/"
   num_gpus: 8  # Number of GPU files to load
-  output_dir: "/mnt/home/lserrano/disco-ttg/outputs/"
+  output_dir: "${oc.env:DISCO_OUTPUTS,outputs}/"
   sub_x: 1
   sub_t: 1
   n_input_frames: 16
@@ -66,6 +66,6 @@ model:
 
 test:
   dataset_name: "euler"
-  results_dir: "/mnt/home/lserrano/disco-ttg/results/"
+  results_dir: "${oc.env:DISCO_RESULTS,results}/"
   splits: ["train", "val", "test"]
   num_steps: 1

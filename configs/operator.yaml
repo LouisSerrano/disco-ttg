@@ -10,7 +10,7 @@ training:
 
 data:
   dataset_name: "advection-diffusion-operator"
-  output_dir: "/mnt/home/lserrano/disco-ttg/outputs/"
+  output_dir: "${oc.env:DISCO_OUTPUTS,outputs}/"
   sub_x: 1
   sub_t: 1
   n_input_frames: 16
@@ -60,5 +60,5 @@ test:
   dataset_name: "advection_diffusion"
   n_input: 16
   n_pred: 50
-  results_dir: "/mnt/home/lserrano/disco-ttg/results/"
+  results_dir: "${oc.env:DISCO_RESULTS,results}/"
   splits: ["train", "val", "test"]

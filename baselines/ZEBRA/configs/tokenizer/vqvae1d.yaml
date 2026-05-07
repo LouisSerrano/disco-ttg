@@ -2,14 +2,14 @@
 
 
 data:
-  data_dir: "/mnt/home/lserrano/data/"
-  output_dir: "/mnt/home/lserrano/ceph/zebra/tokenizer/"
+  data_dir: "./data/"
+  output_dir: "./outputs/zebra/tokenizer/"
   dataset_name: "advection-diffusion"
   slice_size: 1
   setting: "scarce"
-  train_path: "/mnt/home/lserrano/disco-ttg/datasets/train_${data.setting}.npz"
-  val_path: "/mnt/home/lserrano/disco-ttg/datasets/val_${data.setting}.npz"
-  test_path: "/mnt/home/lserrano/disco-ttg/datasets/test_${data.setting}.npz"
+  train_path: "./datasets/train_${data.setting}.npz"
+  val_path: "./datasets/val_${data.setting}.npz"
+  test_path: "./datasets/test_${data.setting}.npz"
   sub_x: 1
   sub_t: 1
   n_input_frames: 1
@@ -24,17 +24,17 @@ data:
   v_range: [0.01, 1.0]
   D_range: [0.001, 1.0]
   train_hdf5_files:
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_train_envsize64.h5"
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_HEAT_train_envsize64.h5"
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_DISP_train_envsize64.h5"
+    - "./datasets/combined_equation/E_EULER_train_envsize64.h5"
+    - "./datasets/combined_equation/E_HEAT_train_envsize64.h5"
+    - "./datasets/combined_equation/E_DISP_train_envsize64.h5"
   val_hdf5_files:
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_valid.h5"
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_HEAT_valid.h5"
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_DISP_valid.h5"
+    - "./datasets/combined_equation/E_EULER_valid.h5"
+    - "./datasets/combined_equation/E_HEAT_valid.h5"
+    - "./datasets/combined_equation/E_DISP_valid.h5"
   test_hdf5_files:
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_test.h5"
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_HEAT_test.h5"
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_DISP_test.h5"
+    - "./datasets/combined_equation/E_EULER_test.h5"
+    - "./datasets/combined_equation/E_HEAT_test.h5"
+    - "./datasets/combined_equation/E_DISP_test.h5"
 
 model:
   channels: 1

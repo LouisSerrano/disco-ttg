@@ -15,28 +15,37 @@ Hydra YAML configs paired with the training scripts in `../train/`.
 | `ablations.yaml`, `ablations_unet.yaml` | `train_ablations*.py` | Ablations |
 | `config_vae_hdf5.yaml` | `train_combined_vae.py` | VAE variant |
 | `config_vqvae_hdf5.yaml` | `train_combined_vqvae.py` | VQ-VAE variant |
+| `config_generic.yaml` | `train_generic.py` | Generic HF-friendly entry point |
 | `plot.yaml` | Notebooks / plotting scripts | — |
 
-## Hardcoded paths to update
+## Path configuration via env vars
 
-Paths in these configs need to be swapped for your environment:
+Configs use OmegaConf's environment-variable interpolation for all data and output paths. Each variable falls back to a path relative to the repo root, so things "just work" if you put your data under `./datasets/` and run from the repo root. Override any of them as needed.
 
-| Field | Default value |
-|---|---|
-| `data.train_path` / `val_path` / `test_path` | `/mnt/home/lserrano/disco-ttg/datasets/...` |
-| `data.train_hdf5_files` (list) | `/mnt/home/lserrano/disco-ttg/datasets/combined_equation/*.h5` |
-| `data.file_dir` (Euler config) | `/mnt/home/lserrano/ceph/data/euler_ns_short/` |
-| `data.output_dir` | `/mnt/home/lserrano/disco-ttg/outputs/` |
-| `data.results_dir` | `/mnt/home/lserrano/disco-ttg/results/` |
+| Hydra interpolation | Env var | Default |
+|---|---|---|
+| `${oc.env:DISCO_DATA,datasets}/...` | `DISCO_DATA` | `datasets` |
+| `${oc.env:DISCO_OUTPUTS,outputs}/...` | `DISCO_OUTPUTS` | `outputs` |
+| `${oc.env:DISCO_RESULTS,results}/...` | `DISCO_RESULTS` | `results` |
+| `${oc.env:DISCO_NS_DATA,datasets/euler_ns_short}/...` | `DISCO_NS_DATA` | `datasets/euler_ns_short` |
+| `${oc.env:DISCO_RD_DATA,datasets/gray-scott}/...` | `DISCO_RD_DATA` | `datasets/gray-scott` |
 
-To find every occurrence: `grep -rn "/mnt/home/lserrano" configs/`.
+To find every interpolation: `grep -rn "oc.env" configs/`.
 
 ## Override at the command line
 
-Hydra lets you override any field without editing the YAML:
+Hydra lets you override any field without editing the YAML or env vars:
 
 ```bash
 python train/train_combined.py \
     data.output_dir=/scratch/$USER/disco/outputs \
     training.lr=1e-4
+```
+
+## Override via env vars
+
+```bash
+export DISCO_DATA=/data/disco
+export DISCO_OUTPUTS=/scratch/$USER/disco/outputs
+python train/train_combined.py
 ```

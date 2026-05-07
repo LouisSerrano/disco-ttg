@@ -17,7 +17,7 @@ source $VENVDIR/disco/bin/activate
 
 # Train for 50k steps with progressive step increase: 80% at 1 step, 5% each at 2,4,8,16 steps
 # Resume from checkpoint to accelerate training
-#CHECKPOINT_PATH=/mnt/home/lserrano/disco-ttg/outputs/DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue_bs64_lr0.0005_hdf5_noise0_inframes16_outframes16_subx1_subt1/last-v1.ckpt
+#CHECKPOINT_PATH=${DISCO_OUTPUTS:-./outputs}/DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue_bs64_lr0.0005_hdf5_noise0_inframes16_outframes16_subx1_subt1/last-v1.ckpt
 
 #"outputs/DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue_bs64_lr0.0005_hdf5_noise0_inframes16_outframes16_subx1_subt1/last-v1.ckpt"
 

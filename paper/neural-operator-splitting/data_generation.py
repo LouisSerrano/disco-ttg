@@ -603,12 +603,12 @@ if __name__ == "__main__":
     
     print("\nVisualizing advection trajectories...")
     fig1 = generator.visualize_trajectories(advection_data, max_trajectories=2)
-    plt.savefig('/mnt/home/lserrano/disco-ttg/neural-operator-splitting/advection_examples.png', 
+    plt.savefig('./paper/neural-operator-splitting/advection_examples.png', 
                 dpi=150, bbox_inches='tight')
     
     print("Visualizing diffusion trajectories...")
     fig2 = generator.visualize_trajectories(diffusion_data, max_trajectories=2)
-    plt.savefig('/mnt/home/lserrano/disco-ttg/neural-operator-splitting/diffusion_examples.png',
+    plt.savefig('./paper/neural-operator-splitting/diffusion_examples.png',
                 dpi=150, bbox_inches='tight')
     
     print("Data generation and visualization complete!")

@@ -18,9 +18,9 @@ source $VENVDIR/disco/bin/activate
 
 python3 baselines/ZEBRA/pretrain_llama.py \
   --config-name=euler_ns.yaml \
-  data.tokenizer_path=/mnt/home/lserrano/zebra/outputs/tokenizer_euler-ns_emb1024_dim64/last.ckpt \
+  data.tokenizer_path=${ZEBRA_OUTPUTS:-./outputs}/tokenizer_euler-ns_emb1024_dim64/last.ckpt \
   data.dataset_name=euler-ns \
-  data.file_dir=/mnt/home/lserrano/ceph/data/euler_ns_short \
+  data.file_dir=${DISCO_NS_DATA:-./datasets/euler_ns_short} \
   data.num_gpus=8 \
   data.vorticity_scale=10.0 \
   model.max_length=16384 \

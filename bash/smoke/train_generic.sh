@@ -18,13 +18,13 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate
 
-OUT=/mnt/home/lserrano/ceph/disco/smoke_outputs
+OUT=./ceph/disco/smoke_outputs
 mkdir -p $OUT
 
 python3 train/train_generic.py \
-    data.train_files=["/mnt/home/lserrano/ceph/disco/datasets_generic/combined_HEAT_test.h5"] \
-    data.val_files=["/mnt/home/lserrano/ceph/disco/datasets_generic/combined_HEAT_valid.h5"] \
-    data.test_files=["/mnt/home/lserrano/ceph/disco/datasets_generic/combined_HEAT_test.h5"] \
+    data.train_files=["./datasets/combined_HEAT_test.h5"] \
+    data.val_files=["./datasets/combined_HEAT_valid.h5"] \
+    data.test_files=["./datasets/combined_HEAT_test.h5"] \
     data.num_environments=32 \
     data.output_dir=$OUT \
     training.batch_size=8 \

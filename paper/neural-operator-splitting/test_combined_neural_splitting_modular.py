@@ -100,9 +100,9 @@ def load_test_data(test_scenario: str, num_samples: int = 5):
     """
     # Define test data file paths
     test_data_files = {
-        'OP_HE': '/mnt/home/lserrano/LPSDA/data/OP_HE_valid.h5',
-        'OP_BG': '/mnt/home/lserrano/LPSDA/data/OP_BG_valid.h5',
-        'OP_ED': '/mnt/home/lserrano/LPSDA/data/OP_ED_valid.h5'
+        'OP_HE': './datasets/lpsda/OP_HE_valid.h5',
+        'OP_BG': './datasets/lpsda/OP_BG_valid.h5',
+        'OP_ED': './datasets/lpsda/OP_ED_valid.h5'
     }
     
     if test_scenario not in test_data_files:

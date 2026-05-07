@@ -19,21 +19,21 @@ module load nccl
 source $VENVDIR/disco/bin/activate
 
 # Find the most-recent generic-smoke checkpoint
-CKPT=$(ls -t /mnt/home/lserrano/ceph/disco/smoke_outputs/DISCO_*/last.ckpt 2>/dev/null | head -1)
+CKPT=$(ls -t ./ceph/disco/smoke_outputs/DISCO_*/last.ckpt 2>/dev/null | head -1)
 if [ -z "$CKPT" ]; then
-    echo "No checkpoint found under /mnt/home/lserrano/ceph/disco/smoke_outputs/. Run train_generic.sh first." >&2
+    echo "No checkpoint found under ./ceph/disco/smoke_outputs/. Run train_generic.sh first." >&2
     exit 1
 fi
 echo "Using checkpoint: $CKPT"
 
 python3 test_time_compute/test_generic.py \
     --model_path "$CKPT" \
-    --train_files /mnt/home/lserrano/ceph/disco/datasets_generic/combined_HEAT_test.h5 \
-    --test_files  /mnt/home/lserrano/ceph/disco/datasets_generic/combined_HEAT_test.h5 \
+    --train_files ./datasets/combined_HEAT_test.h5 \
+    --test_files  ./datasets/combined_HEAT_test.h5 \
     --operator_source codebook \
     --method random \
     --random_trials 16 \
     --random_batch_size 4 \
     --num_samples 16 \
     --batch_size 4 \
-    --output_dir /mnt/home/lserrano/ceph/disco/smoke_outputs/test_results
+    --output_dir ./ceph/disco/smoke_outputs/test_results

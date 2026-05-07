@@ -12,7 +12,7 @@ Output format:
 
 Usage:
     python scripts/extract_ns_test_split.py \
-        --file_dir /mnt/home/lserrano/ceph/data/euler_ns_short \
+        --file_dir ./datasets/euler_ns_short \
         --num_gpus 8 \
         --output /tmp/disco_generic/ns_val.h5 \
         --max_samples 1024

@@ -90,7 +90,7 @@ def main():
     dispersion_model_path = "./models/dispersion_model.pth" 
     
     # Test data path
-    test_data_path = "/mnt/home/lserrano/LPSDA/data/OP_BG_valid.h5"
+    test_data_path = "./datasets/lpsda/OP_BG_valid.h5"
     
     # Check if models exist
     if not os.path.exists(heat_model_path):

@@ -108,9 +108,9 @@ def main():
     args = parser.parse_args()
 
     # Dataset configuration
-    TRAINING_FILES = ["/mnt/home/lserrano/gray-scott-python/data/feed_20params_512traj_each.hdf5",
-                      "/mnt/home/lserrano/gray-scott-python/data/kill_20params_512traj_each.hdf5"]
-    TEST_FILES = ["/mnt/home/lserrano/gray-scott-python/data/gray_scott_10x10_params_16traj_each.hdf5"]
+    TRAINING_FILES = ["./datasets/gray-scott/feed_20params_512traj_each.hdf5",
+                      "./datasets/gray-scott/kill_20params_512traj_each.hdf5"]
+    TEST_FILES = ["./datasets/gray-scott/gray_scott_10x10_params_16traj_each.hdf5"]
     N_INPUT_FRAMES = 16
     N_OUTPUT_FRAMES = 32
 

@@ -19,7 +19,7 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate
 
-CKPT=/mnt/home/lserrano/ceph/disco/outputs/DISCO_advection-diffusion_solverrk4_adjFalse_h128_t2_steps1_initTrue_bs512_lr0.001_ctxTrue_noise0_inframes16_outframes16_T10/last.ckpt
+CKPT=${DISCO_CKPT_DIR:-./outputs}/DISCO_advection-diffusion_solverrk4_adjFalse_h128_t2_steps1_initTrue_bs512_lr0.001_ctxTrue_noise0_inframes16_outframes16_T10/last.ckpt
 
 python3 test_time_compute/equations/test_advection_diffusion.py \
     --model_path $CKPT \

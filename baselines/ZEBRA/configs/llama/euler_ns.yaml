@@ -3,11 +3,11 @@
 data:
   dataset_name: "euler-ns"
   # Euler/NS data configuration
-  file_dir: "/mnt/home/lserrano/ceph/data/euler_ns_short"  # Directory with trajectories_gpu*.h5 files
+  file_dir: "./datasets/euler_ns_short"  # Directory with trajectories_gpu*.h5 files
   num_gpus: 8  # Number of GPU shards
-  output_dir: "/mnt/home/lserrano/ceph/zebra/llama/"
-  token_dataset_path: "/mnt/home/lserrano/ceph/zebra/tokens/"
-  tokenizer_path: "/mnt/home/lserrano/ceph/zebra/tokenizer/"  # Path to trained tokenizer
+  output_dir: "./outputs/zebra/llama/"
+  token_dataset_path: "./outputs/zebra/tokens/"
+  tokenizer_path: "./outputs/zebra/tokenizer/"  # Path to trained tokenizer
   vorticity_scale: 10.0  # Normalization factor for vorticity
   slice_size: 17  # n_input_frames + n_output_frames
   num_context_trajectories: 1

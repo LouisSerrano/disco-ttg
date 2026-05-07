@@ -16,7 +16,7 @@ module load nccl
 source $VENVDIR/disco/bin/activate 
 
 python3 baselines/ZEBRA/pretrain_llama.py \
-  data.tokenizer_path=/mnt/home/lserrano/ceph/zebra/tokenizer/rd/rural-sky-68/last.ckpt \
+  data.tokenizer_path=${ZEBRA_CKPT_DIR:-./outputs/zebra}/tokenizer/rd/rural-sky-68/last.ckpt \
   data.dataset_name=gray-scott \
   model.max_length=16384 \
   training.tokenize_on_the_fly=False \
@@ -24,6 +24,6 @@ python3 baselines/ZEBRA/pretrain_llama.py \
   data.n_output_frames=16 \
   data.slice_size=32 \
   training.batch_size=16 \
-  data.train_hdf5_files='["/mnt/home/lserrano/gray-scott-python/data/feed_20params_512traj_each.hdf5","/mnt/home/lserrano/gray-scott-python/data/kill_20params_512traj_each.hdf5"]' \
-  data.val_hdf5_files='["/mnt/home/lserrano/gray-scott-python/data/val_feed_20params_8traj_each.hdf5","/mnt/home/lserrano/gray-scott-python/data/val_kill_20params_8traj_each.hdf5"]' \
-  data.test_hdf5_files='["/mnt/home/lserrano/gray-scott-python/data/val_feed_20params_8traj_each.hdf5","/mnt/home/lserrano/gray-scott-python/data/val_kill_20params_8traj_each.hdf5"]'
+  data.train_hdf5_files='["${DISCO_RD_DATA:-./datasets/gray-scott}/feed_20params_512traj_each.hdf5","${DISCO_RD_DATA:-./datasets/gray-scott}/kill_20params_512traj_each.hdf5"]' \
+  data.val_hdf5_files='["${DISCO_RD_DATA:-./datasets/gray-scott}/val_feed_20params_8traj_each.hdf5","${DISCO_RD_DATA:-./datasets/gray-scott}/val_kill_20params_8traj_each.hdf5"]' \
+  data.test_hdf5_files='["${DISCO_RD_DATA:-./datasets/gray-scott}/val_feed_20params_8traj_each.hdf5","${DISCO_RD_DATA:-./datasets/gray-scott}/val_kill_20params_8traj_each.hdf5"]'

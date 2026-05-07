@@ -16,7 +16,7 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate
 
-MODEL_PATH=/mnt/home/lserrano/ceph/disco/outputs/DISCO_advection-diffusion_solverrk4_adjFalse_h128_t2_steps1_initFalse_bs64_lr0.0005_ctxTrue_noise0.0001_mixed0.5_inframes16_outframes2_T10/best-checkpoint.ckpt
+MODEL_PATH=${DISCO_CKPT_DIR:-./outputs}/DISCO_advection-diffusion_solverrk4_adjFalse_h128_t2_steps1_initFalse_bs64_lr0.0005_ctxTrue_noise0.0001_mixed0.5_inframes16_outframes2_T10/best-checkpoint.ckpt
 
 # === Pure physics dictionary (paper default) ===
 OUTPUT_DIR=./test_time_compute/results/rebuttal/mixed05_of2_puredict

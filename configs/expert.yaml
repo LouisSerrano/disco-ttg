@@ -10,14 +10,14 @@ training:
 data:
   dataset_name: "advection-diffusion"
   setting: "scarce"
-  train_path: "/mnt/home/lserrano/disco-ttg/datasets/train_${data.setting}.npz"
-  val_path: "/mnt/home/lserrano/disco-ttg/datasets/val_${data.setting}.npz"
-  test_path: "/mnt/home/lserrano/disco-ttg/datasets/test_${data.setting}.npz"
+  train_path: "${oc.env:DISCO_DATA,datasets}/train_${data.setting}.npz"
+  val_path: "${oc.env:DISCO_DATA,datasets}/val_${data.setting}.npz"
+  test_path: "${oc.env:DISCO_DATA,datasets}/test_${data.setting}.npz"
   sub_x: 1
   sub_t: 1
   n_input_frames: 16
   n_output_frames: 3
-  output_dir: "/mnt/home/lserrano/disco-ttg/outputs/"
+  output_dir: "${oc.env:DISCO_OUTPUTS,outputs}/"
   # Dataset generation parameters
   L: 16.0
   nx: 256

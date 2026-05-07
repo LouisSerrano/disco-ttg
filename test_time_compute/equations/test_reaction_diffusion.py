@@ -65,11 +65,11 @@ def main():
                         help='Batch size for beam search operator selection (default: 32)')
     args = parser.parse_args()
 
-    TRAINING_FILES = ["/mnt/home/lserrano/gray-scott-python/data/feed_20params_512traj_each.hdf5",
-    "/mnt/home/lserrano/gray-scott-python/data/kill_20params_512traj_each.hdf5"]
+    TRAINING_FILES = ["./datasets/gray-scott/feed_20params_512traj_each.hdf5",
+    "./datasets/gray-scott/kill_20params_512traj_each.hdf5"]
 
-    #TEST_FILES = ["/mnt/home/lserrano/gray-scott-python/data/gray_scott_10x10_params_16traj_each.hdf5"]
-    TEST_FILES = ["/mnt/home/lserrano/gray-scott-python/data/gray_scott_10x10_params_16traj_each.hdf5"]
+    #TEST_FILES = ["./datasets/gray-scott/gray_scott_10x10_params_16traj_each.hdf5"]
+    TEST_FILES = ["./datasets/gray-scott/gray_scott_10x10_params_16traj_each.hdf5"]
     N_INPUT_FRAMES = 16
     N_OUTPUT_FRAMES = 32
 

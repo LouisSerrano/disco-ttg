@@ -7,10 +7,10 @@ defaults:
 data:
   dataset_name: "advection-diffusion"
   setting: "scarce"
-  train_path: "/mnt/home/lserrano/disco-ttg/datasets/train_${data.setting}.npz"
-  val_path: "/mnt/home/lserrano/disco-ttg/datasets/val_${data.setting}.npz"
-  test_path: "/mnt/home/lserrano/disco-ttg/datasets/test_${data.setting}.npz"
-  output_dir: "/mnt/home/lserrano/ceph/"
+  train_path: "./datasets/train_${data.setting}.npz"
+  val_path: "./datasets/val_${data.setting}.npz"
+  test_path: "./datasets/test_${data.setting}.npz"
+  output_dir: "./ceph/"
   image_size: 256
   channels: 1
   saved_folder:

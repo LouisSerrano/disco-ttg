@@ -33,9 +33,9 @@ python3 train/train_combined_vqvae.py \
     data.n_input_frames=16 \
     data.n_output_frames=16 \
     data.sub_t=1 \
-    data.train_hdf5_files=["/mnt/home/lserrano/MP-Neural-PDE-Solvers/data/OP_Euler_train_alpha1.0_beta0.0_gamma0.0_1024.h5"] \
-    data.val_hdf5_files=["/mnt/home/lserrano/MP-Neural-PDE-Solvers/data/OP_Euler_valid_alpha1.0_beta0.0_gamma0.0.h5"] \
-    data.test_hdf5_files=["/mnt/home/lserrano/MP-Neural-PDE-Solvers/data/OP_Euler_test_alpha1.0_beta0.0_gamma0.0.h5"]
-    #data.train_hdf5_files=["/mnt/home/lserrano/LPSDA/data/E_EULER_train_8192.h5"] \
-    #data.val_hdf5_files=["/mnt/home/lserrano/LPSDA/data/E_EULER_valid.h5"] \
-    #data.test_hdf5_files=["/mnt/home/lserrano/LPSDA/data/E_EULER_test.h5"]
+    data.train_hdf5_files=["${DISCO_MPP_DATA:-./datasets/mp-neural}/OP_Euler_train_alpha1.0_beta0.0_gamma0.0_1024.h5"] \
+    data.val_hdf5_files=["${DISCO_MPP_DATA:-./datasets/mp-neural}/OP_Euler_valid_alpha1.0_beta0.0_gamma0.0.h5"] \
+    data.test_hdf5_files=["${DISCO_MPP_DATA:-./datasets/mp-neural}/OP_Euler_test_alpha1.0_beta0.0_gamma0.0.h5"]
+    #data.train_hdf5_files=["${DISCO_LPSDA_DATA:-./datasets/lpsda}/E_EULER_train_8192.h5"] \
+    #data.val_hdf5_files=["${DISCO_LPSDA_DATA:-./datasets/lpsda}/E_EULER_valid.h5"] \
+    #data.test_hdf5_files=["${DISCO_LPSDA_DATA:-./datasets/lpsda}/E_EULER_test.h5"]

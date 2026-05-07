@@ -55,15 +55,21 @@ pip install -e .
 - [`bash/README.md`](bash/README.md) — SLURM launch scripts
 - [`paper/neural-operator-splitting/README.md`](paper/neural-operator-splitting/README.md) — classical/neural splitting code
 
-## Hardcoded paths
+## Configuring data + checkpoint paths
 
-The configs and bash scripts contain absolute paths from the original development environment (`/mnt/home/lserrano/...`). Before running on a new machine, find and replace these paths:
+All paths in configs and bash scripts are parameterized via environment variables with sensible defaults relative to the repo root. Set them once in your shell (or `.envrc` / sbatch wrapper):
 
-```bash
-grep -rn "/mnt/home/lserrano" configs/ bash/
-```
+| Variable | Default | Used for |
+|---|---|---|
+| `DISCO_DATA` | `./datasets` | base dataset directory |
+| `DISCO_OUTPUTS` | `./outputs` | training output / checkpoints |
+| `DISCO_RESULTS` | `./results` | evaluation output |
+| `DISCO_NS_DATA` | `./datasets/euler_ns_short` | Navier-Stokes / Euler HDF5 |
+| `DISCO_RD_DATA` | `./datasets/gray-scott` | Gray-Scott reaction-diffusion HDF5 |
+| `DISCO_MPP_DATA` | `./datasets/mp-neural` | MP-Neural-PDE-Solvers data (combined-equation source) |
+| `DISCO_CKPT_DIR` | `./outputs` | alternative checkpoint store |
 
-See each subfolder's README for the specific paths to swap.
+Hydra configs use `${oc.env:VAR,default}` and bash scripts use `${VAR:-default}`. See [`configs/README.md`](configs/README.md) and [`bash/README.md`](bash/README.md) for details.
 
 ## Checkpoints & Datasets
 

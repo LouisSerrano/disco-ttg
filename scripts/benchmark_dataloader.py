@@ -228,7 +228,7 @@ def benchmark_with_gpu_transfer(file_dir: str, num_gpus: int, batch_size: int = 
 def main():
     parser = argparse.ArgumentParser(description='Benchmark data loading')
     parser.add_argument('--file_dir', type=str,
-                        default='/mnt/home/lserrano/ceph/data/euler_ns/',
+                        default='./datasets/euler_ns_short/',
                         help='Directory with trajectories_gpu*.h5 files')
     parser.add_argument('--num_gpus', type=int, default=8,
                         help='Number of GPU files')

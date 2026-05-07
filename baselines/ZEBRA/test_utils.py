@@ -34,7 +34,7 @@ class RelativeL2(nn.Module):
 class ResultsManager:
     """Manages saving and organizing test results."""
     
-    def __init__(self, base_dir="/mnt/home/lserrano/zebra/results"):
+    def __init__(self, base_dir="./zebra/results"):
         self.base_dir = Path(base_dir)
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         

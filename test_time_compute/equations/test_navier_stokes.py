@@ -164,7 +164,7 @@ def main():
     parser.add_argument('--num_plots', type=int, default=4,
                         help='Number of samples to plot (default: 4)')
     # Dataset parameters
-    parser.add_argument('--file_dir', type=str, default='/mnt/home/lserrano/ceph/data/euler_ns_short/',
+    parser.add_argument('--file_dir', type=str, default='./datasets/euler_ns_short/',
                         help='Path to data directory')
     parser.add_argument('--num_gpus', type=int, default=8,
                         help='Number of GPU files (default: 8)')

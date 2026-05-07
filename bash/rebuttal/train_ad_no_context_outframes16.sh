@@ -34,4 +34,4 @@ python3 train/train.py \
     training.noise_level=0 \
     data.T=10 \
     data.n_output_frames=16 \
-    data.output_dir=/mnt/home/lserrano/ceph/disco/outputs/
+    data.output_dir=${DISCO_CKPT_DIR:-./outputs}/

@@ -6,7 +6,7 @@ from datetime import datetime
 from torch.utils.data import DataLoader
 import sys
 
-sys.path.append("/mnt/home/lserrano/disco-ttg/test_time_compute")
+sys.path.append("./disco-ttg/test_time_compute")
 
 from ttc_utils import (
     save_results,
@@ -94,7 +94,7 @@ def main():
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for evaluation')
     args = parser.parse_args()
 
-    TEST_FILES = ["/mnt/home/lserrano/gray-scott-python/data/gray_scott_10x10_params_16traj_each.hdf5"]
+    TEST_FILES = ["./datasets/gray-scott/gray_scott_10x10_params_16traj_each.hdf5"]
     N_INPUT_FRAMES = 16
     N_OUTPUT_FRAMES = 32
 

@@ -26,21 +26,21 @@ data:
   dataset_name: "combined-physics-hdf5"
   # HDF5 file configuration - separate files for train/val/test
   train_hdf5_files: 
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_train_8192.h5"
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_HEAT_train_8192.h5"
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_DISP_train_8192.h5"
+    - "${oc.env:DISCO_DATA,datasets}/combined_equation/E_EULER_train_8192.h5"
+    - "${oc.env:DISCO_DATA,datasets}/combined_equation/E_HEAT_train_8192.h5"
+    - "${oc.env:DISCO_DATA,datasets}/combined_equation/E_DISP_train_8192.h5"
   val_hdf5_files:
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_valid.h5"
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_HEAT_valid.h5"
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_DISP_valid.h5"
+    - "${oc.env:DISCO_DATA,datasets}/combined_equation/E_EULER_valid.h5"
+    - "${oc.env:DISCO_DATA,datasets}/combined_equation/E_HEAT_valid.h5"
+    - "${oc.env:DISCO_DATA,datasets}/combined_equation/E_DISP_valid.h5"
   test_hdf5_files:
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_test.h5"
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_HEAT_test.h5"
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_DISP_test.h5"
+    - "${oc.env:DISCO_DATA,datasets}/combined_equation/E_EULER_test.h5"
+    - "${oc.env:DISCO_DATA,datasets}/combined_equation/E_HEAT_test.h5"
+    - "${oc.env:DISCO_DATA,datasets}/combined_equation/E_DISP_test.h5"
   # Legacy support - will be ignored if train_hdf5_files is present
   hdf5_files: 
-    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_train_8192.h5"
-  output_dir: "/mnt/home/lserrano/disco-ttg/outputs/"
+    - "${oc.env:DISCO_DATA,datasets}/combined_equation/E_EULER_train_8192.h5"
+  output_dir: "${oc.env:DISCO_OUTPUTS,outputs}/"
   sub_x: 1
   sub_t: 1
   n_input_frames: 16
@@ -73,6 +73,6 @@ model:
 
 test:
   dataset_name: "euler_hdf5"
-  results_dir: "/mnt/home/lserrano/disco-ttg/results/"
+  results_dir: "${oc.env:DISCO_RESULTS,results}/"
   splits: ["train", "val", "test"]
   num_steps: 1

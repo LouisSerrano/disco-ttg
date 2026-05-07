@@ -32,9 +32,9 @@ python3 train/train_combined.py \
     data.n_input_frames=32 \
     data.n_output_frames=16 \
     data.sub_t=1 \
-    data.train_hdf5_files=["/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_train_8192.h5"] \
-    data.val_hdf5_files=["/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_valid.h5"] \
-data.test_hdf5_files=["/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_test.h5"]
-    #data.train_hdf5_files=["/mnt/home/lserrano/LPSDA/data/E_EULER_train_8192.h5"] \
-    #data.val_hdf5_files=["/mnt/home/lserrano/LPSDA/data/E_EULER_valid.h5"] \
-    #data.test_hdf5_files=["/mnt/home/lserrano/LPSDA/data/E_EULER_test.h5"]
+    data.train_hdf5_files=["${DISCO_DATA:-./datasets}/combined_equation/E_EULER_train_8192.h5"] \
+    data.val_hdf5_files=["${DISCO_DATA:-./datasets}/combined_equation/E_EULER_valid.h5"] \
+data.test_hdf5_files=["${DISCO_DATA:-./datasets}/combined_equation/E_EULER_test.h5"]
+    #data.train_hdf5_files=["${DISCO_LPSDA_DATA:-./datasets/lpsda}/E_EULER_train_8192.h5"] \
+    #data.val_hdf5_files=["${DISCO_LPSDA_DATA:-./datasets/lpsda}/E_EULER_valid.h5"] \
+    #data.test_hdf5_files=["${DISCO_LPSDA_DATA:-./datasets/lpsda}/E_EULER_test.h5"]

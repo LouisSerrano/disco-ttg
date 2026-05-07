@@ -16,21 +16,21 @@ module load nccl
 source $VENVDIR/disco/bin/activate 
 
 
-#python test_time_compute/equations/test_combined_equation.py --model_path  /mnt/home/lserrano/disco-ttg/outputs/DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue_bs64_lr0.0005_hdf5_noise0_inframes16_outframes2_subx1_subt1_20250918_135244/last.ckpt --methods beam --experiment E_BG --beam_width 4
+#python test_time_compute/equations/test_combined_equation.py --model_path  ${DISCO_OUTPUTS:-./outputs}/DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue_bs64_lr0.0005_hdf5_noise0_inframes16_outframes2_subx1_subt1_20250918_135244/last.ckpt --methods beam --experiment E_BG --beam_width 4
 
-#python test_time_compute/equations/test_combined_equation.py --model_path  /mnt/home/lserrano/disco-ttg/outputs/DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue_bs64_lr0.0005_hdf5_noise0_inframes16_outframes2_subx1_subt1_20250918_135244/last.ckpt --methods beam --experiment E_HE --beam_width 4
+#python test_time_compute/equations/test_combined_equation.py --model_path  ${DISCO_OUTPUTS:-./outputs}/DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue_bs64_lr0.0005_hdf5_noise0_inframes16_outframes2_subx1_subt1_20250918_135244/last.ckpt --methods beam --experiment E_HE --beam_width 4
 
-#python test_time_compute/equations/test_combined_equation.py --model_path  /mnt/home/lserrano/disco-ttg/outputs/DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue_bs64_lr0.0005_hdf5_noise0_inframes16_outframes2_subx1_subt1_20250918_135244/last.ckpt --methods beam --experiment E_ED --beam_width 4
+#python test_time_compute/equations/test_combined_equation.py --model_path  ${DISCO_OUTPUTS:-./outputs}/DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue_bs64_lr0.0005_hdf5_noise0_inframes16_outframes2_subx1_subt1_20250918_135244/last.ckpt --methods beam --experiment E_ED --beam_width 4
 
-#python test_time_compute/equations/test_combined_equation.py --model_path  /mnt/home/lserrano/disco-ttg/outputs/DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue_bs64_lr0.0005_hdf5_noise0_inframes16_outframes2_subx1_subt1_20250918_135244/last.ckpt --methods beam --experiment E_ALL --beam_width 4
+#python test_time_compute/equations/test_combined_equation.py --model_path  ${DISCO_OUTPUTS:-./outputs}/DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue_bs64_lr0.0005_hdf5_noise0_inframes16_outframes2_subx1_subt1_20250918_135244/last.ckpt --methods beam --experiment E_ALL --beam_width 4
 
 
 ckpt_path=DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initFalse_bs64_lr0.0005_hdf5_noise0_inframes16_outframes2_subx1_subt1_20250915_235633
 
-#python test_time_compute/equations/test_combined_equation.py --model_path  /mnt/home/lserrano/disco-ttg/outputs/$ckpt_path/last.ckpt --methods beam --experiment E_BG --beam_width 4
+#python test_time_compute/equations/test_combined_equation.py --model_path  ${DISCO_OUTPUTS:-./outputs}/$ckpt_path/last.ckpt --methods beam --experiment E_BG --beam_width 4
 
-#python test_time_compute/equations/test_combined_equation.py --model_path  /mnt/home/lserrano/disco-ttg/outputs/$ckpt_path/last.ckpt --methods beam --experiment E_HE --beam_width 4
+#python test_time_compute/equations/test_combined_equation.py --model_path  ${DISCO_OUTPUTS:-./outputs}/$ckpt_path/last.ckpt --methods beam --experiment E_HE --beam_width 4
 
-python test_time_compute/equations/test_combined_equation.py --model_path  /mnt/home/lserrano/disco-ttg/outputs/$ckpt_path/last.ckpt --methods beam --experiment E_ED --beam_width 4
+python test_time_compute/equations/test_combined_equation.py --model_path  ${DISCO_OUTPUTS:-./outputs}/$ckpt_path/last.ckpt --methods beam --experiment E_ED --beam_width 4
 
-python test_time_compute/equations/test_combined_equation.py --model_path  /mnt/home/lserrano/disco-ttg/outputs/$ckpt_path/last.ckpt --methods beam --experiment E_ALL --beam_width 4
+python test_time_compute/equations/test_combined_equation.py --model_path  ${DISCO_OUTPUTS:-./outputs}/$ckpt_path/last.ckpt --methods beam --experiment E_ALL --beam_width 4

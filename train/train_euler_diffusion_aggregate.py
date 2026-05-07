@@ -503,7 +503,7 @@ def main(cfg: DictConfig):
     wandb_logger.experiment.define_metric("grad_std/*", step_metric="trainer/global_step")
 
     # Create separate HDF5 datasets for train/val/test using EulerDiffusionDatasetWrapper
-    file_dir = getattr(cfg.data, 'file_dir', "/mnt/home/lserrano/ceph/data/euler_ns/")
+    file_dir = getattr(cfg.data, 'file_dir', "./datasets/euler_ns_short/")
     num_gpus = getattr(cfg.data, 'num_gpus', 8)
     val_fraction = 0.1
     seed = 42

@@ -335,30 +335,30 @@ def test(args):
         EXPERIMENT_FILES = {
 
         'E_DEBUG': {
-            'train': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_HEAT_valid.h5',
-            #'test': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_BG_test.h5'
+            'train': './datasets/combined_equation/E_HEAT_valid.h5',
+            #'test': './datasets/combined_equation/E_BG_test.h5'
         },    
         'E_BG': {
-            'train': '/mnt/home/lserrano/ceph/E_BG_train_gridparam512.h5',
-            #'test': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_BG_test.h5'
+            'train': './datasets/E_BG_train_gridparam512.h5',
+            #'test': './datasets/combined_equation/E_BG_test.h5'
         },
         'E_ED': {
-            'train': '/mnt/home/lserrano/ceph/E_ED_train_gridparam512.h5',
-            #'test': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/ood/E_ED_test.h5'
+            'train': './datasets/E_ED_train_gridparam512.h5',
+            #'test': './datasets/combined_equation/ood/E_ED_test.h5'
         },
         'E_HE': {
-            'train': '/mnt/home/lserrano/ceph/E_HE_train_gridparam512.h5',
-            #'test': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/ood/E_HE_test.h5'
+            'train': './datasets/E_HE_train_gridparam512.h5',
+            #'test': './datasets/combined_equation/ood/E_HE_test.h5'
         },
         'E_ALL': {
-            'train': '/mnt/home/lserrano/ceph/E_ALL_train_gridparam512.h5',
-            #'test': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/test.h5'
+            'train': './datasets/E_ALL_train_gridparam512.h5',
+            #'test': './datasets/combined_equation/test.h5'
         },
         'E_EULER_OOD': {
-            'train': '/mnt/home/lserrano/ceph/E_EULER_OOD_train_envsize16.h5',
+            'train': './datasets/E_EULER_OOD_train_envsize16.h5',
         },
         'E_DISP_OOD': {
-            'train': '/mnt/home/lserrano/ceph/E_DISP_OOD_train_envsize16.h5',
+            'train': './datasets/E_DISP_OOD_train_envsize16.h5',
             }
         }
 
@@ -415,7 +415,7 @@ def test(args):
         
     elif dataset_name=="gray-scott":
         # Gray-Scott dataset
-        TEST_FILES = ["/mnt/home/lserrano/gray-scott-python/data/gray_scott_10x10_params_16traj_each.hdf5"]
+        TEST_FILES = ["./datasets/gray-scott/gray_scott_10x10_params_16traj_each.hdf5"]
         N_INPUT_FRAMES = 16
         N_OUTPUT_FRAMES = 32
 
@@ -444,7 +444,7 @@ def test(args):
         N_OUTPUT_FRAMES = 16
 
         test_ds = NavierStokesDatasetWrapperZEBRA(
-            file_dir="/mnt/home/lserrano/ceph/data/euler_ns_short",
+            file_dir="./datasets/euler_ns_short",
             num_gpus=8,
             input_frames=N_INPUT_FRAMES,
             output_frames=N_OUTPUT_FRAMES,
@@ -466,10 +466,10 @@ def test(args):
         print(f"Test dataset (Navier-Stokes): {len(test_ds)} samples")
 
     checkpoint_dict = {
-        "advection-diffusion": f"/mnt/home/lserrano/ceph/zebra/llama/{dataset_name}/radiant-planet-99/last.ckpt", # best.ckpt before
-        "combined-equation":f"/mnt/home/lserrano/ceph/zebra/llama/{dataset_name}/skilled-plasma-98/best.ckpt",
-        "gray-scott": f"/mnt/home/lserrano/ceph/zebra/llama/{dataset_name}/dashing-violet-94/best.ckpt",
-        "euler-ns": "/mnt/home/lserrano/ceph/zebra/llama/euler-ns/earthy-fire-25/last.ckpt"
+        "advection-diffusion": f"./outputs/zebra/llama/{dataset_name}/radiant-planet-99/last.ckpt", # best.ckpt before
+        "combined-equation":f"./outputs/zebra/llama/{dataset_name}/skilled-plasma-98/best.ckpt",
+        "gray-scott": f"./outputs/zebra/llama/{dataset_name}/dashing-violet-94/best.ckpt",
+        "euler-ns": "./outputs/zebra/llama/euler-ns/earthy-fire-25/last.ckpt"
     }
     checkpoint_path = args.model_path if args.model_path else checkpoint_dict[dataset_name]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

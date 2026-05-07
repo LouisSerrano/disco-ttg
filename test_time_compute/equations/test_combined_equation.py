@@ -75,33 +75,33 @@ def main():
     args = parser.parse_args()
 
     # Dataset mapping based on experiment type
-    TRAINING_FILES = ["/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_train_gridparam256.h5",
-                        "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_HEAT_train_gridparam8192.h5",
-                        "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_DISP_train_gridparam8192.h5"
+    TRAINING_FILES = ["./datasets/combined_equation/E_EULER_train_gridparam256.h5",
+                        "./datasets/combined_equation/E_HEAT_train_gridparam8192.h5",
+                        "./datasets/combined_equation/E_DISP_train_gridparam8192.h5"
                         ]
 
     EXPERIMENT_FILES = {
         'E_BG': {
-            'train': '/mnt/home/lserrano/ceph/E_BG_train_gridparam512.h5',
-            #'test': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_BG_test.h5'
+            'train': './datasets/E_BG_train_gridparam512.h5',
+            #'test': './datasets/combined_equation/E_BG_test.h5'
         },
         'E_ED': {
-            'train': '/mnt/home/lserrano/ceph/E_ED_train_gridparam512.h5',
-            #'test': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/ood/E_ED_test.h5'
+            'train': './datasets/E_ED_train_gridparam512.h5',
+            #'test': './datasets/combined_equation/ood/E_ED_test.h5'
         },
         'E_HE': {
-            'train': '/mnt/home/lserrano/ceph/E_HE_train_gridparam512.h5',
-            #'test': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/ood/E_HE_test.h5'
+            'train': './datasets/E_HE_train_gridparam512.h5',
+            #'test': './datasets/combined_equation/ood/E_HE_test.h5'
         },
         'E_ALL': {
-            'train': '/mnt/home/lserrano/ceph/E_ALL_train_gridparam512.h5',
-            #'test': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/test.h5'
+            'train': './datasets/E_ALL_train_gridparam512.h5',
+            #'test': './datasets/combined_equation/test.h5'
         },
         'E_EULER_OOD': {
-            'train': '/mnt/home/lserrano/ceph/E_EULER_OOD_train_envsize16.h5',
+            'train': './datasets/E_EULER_OOD_train_envsize16.h5',
         },
         'E_DISP_OOD': {
-            'train': '/mnt/home/lserrano/ceph/E_DISP_OOD_train_envsize16.h5',
+            'train': './datasets/E_DISP_OOD_train_envsize16.h5',
         }
     }
 

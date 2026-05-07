@@ -1,2 +1,2 @@
-results_dir: "/mnt/home/lserrano/disco-ttg/results/advection_diffusion"
+results_dir: "${oc.env:DISCO_RESULTS,results}/advection_diffusion"
 run_name: 

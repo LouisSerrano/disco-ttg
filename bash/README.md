@@ -11,30 +11,41 @@ SLURM scripts that wrap `python train/...` and `python test_time_compute/...` in
 | `euler/` | 2D Euler / Navier-Stokes experiments and baselines |
 | `rd/` | Reaction-diffusion (Gray-Scott) experiments and baselines |
 | `rebuttal/` | ICML 2026 rebuttal experiments (perturbation sweeps, fitting-window sweeps, mixed-physics, no-context) |
+| `smoke/` | Tiny smoke tests for the train/test pipelines |
 | `*/baselines/` | GEPS, MPP, ZEBRA, tokenizer launches per equation |
 
-## Hardcoded paths to update
+## Path configuration via env vars
 
-These scripts contain absolute paths from the original development environment. Search-and-replace the relevant prefix for your setup:
+Bash scripts read paths from environment variables with sensible defaults relative to the repo root. Set them once in your shell (or sbatch wrapper) before submitting:
 
-| Path prefix | What it points to |
-|---|---|
-| `/mnt/home/lserrano/disco-ttg/datasets/combined_equation/` | HDF5 datasets (Burgers/heat/dispersion/Euler) |
-| `/mnt/home/lserrano/disco-ttg/outputs/` | DISCO training output dir (checkpoints) |
-| `/mnt/home/lserrano/ceph/disco/outputs/` | Alternate (ceph) checkpoint location |
-| `/mnt/home/lserrano/ceph/geps/` | GEPS baseline checkpoints |
-| `/mnt/home/lserrano/ceph/zebra/` | ZEBRA tokenizer + LLaMA checkpoints |
-| `/mnt/home/lserrano/ceph/data/euler_ns_short/` | Euler/NS HDF5 data |
-| `/mnt/home/lserrano/gray-scott-python/data/` | Gray-Scott (reaction-diffusion) data |
-| `/mnt/home/lserrano/MP-Neural-PDE-Solvers/data/` | MP-Neural-PDE-Solvers data (mostly in commented-out lines) |
+| Variable | Default | What it points to |
+|---|---|---|
+| `DISCO_DATA` | `./datasets` | base dataset directory |
+| `DISCO_OUTPUTS` | `./outputs` | DISCO training output / checkpoints |
+| `DISCO_RESULTS` | `./results` | evaluation output |
+| `DISCO_CKPT_DIR` | `./outputs` | alternative checkpoint store (e.g. ceph) |
+| `DISCO_NS_DATA` | `./datasets/euler_ns_short` | Navier-Stokes / Euler HDF5 |
+| `DISCO_RD_DATA` | `./datasets/gray-scott` | Gray-Scott reaction-diffusion HDF5 |
+| `DISCO_MPP_DATA` | `./datasets/mp-neural` | MP-Neural-PDE-Solvers data (combined-equation original source) |
+| `DISCO_LPSDA_DATA` | `./datasets/lpsda` | LPSDA Euler data |
+| `GEPS_CKPT_DIR` | `./outputs/geps` | GEPS baseline checkpoints |
+| `MPP_CKPT_DIR` | `./outputs/mpp` | MPP baseline checkpoints |
+| `ZEBRA_CKPT_DIR` | `./outputs/zebra` | ZEBRA baseline checkpoints |
+| `ZEBRA_OUTPUTS` | `./outputs` | alternative ZEBRA output dir |
 
-To find every occurrence: `grep -rn "/mnt/home/lserrano" bash/`.
+Hydra YAML configs use the equivalent `${oc.env:VAR,default}` interpolation. See [`configs/README.md`](../configs/README.md) for that mapping.
 
 ## Submission
 
-All scripts are SLURM `sbatch` jobs. Submit with:
+```bash
+sbatch bash/advection-diffusion/train.sh
+```
+
+If your data/checkpoints live somewhere other than the defaults, export the relevant env var first:
 
 ```bash
+export DISCO_DATA=/path/to/datasets
+export DISCO_OUTPUTS=/path/to/outputs
 sbatch bash/advection-diffusion/train.sh
 ```
 

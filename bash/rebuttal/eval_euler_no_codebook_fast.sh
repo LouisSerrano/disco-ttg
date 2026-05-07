@@ -16,7 +16,7 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate
 
-MODEL_PATH=/mnt/home/lserrano/ceph/disco/outputs/DISCO_euler_solverrk4_adjFalse_h128_t4_steps4_initFalse_bs16_lr0.0003_hdf5_noise0_inframes16_outframes2_subx1_subt1_20260328_124504/best-checkpoint.ckpt
+MODEL_PATH=${DISCO_CKPT_DIR:-./outputs}/DISCO_euler_solverrk4_adjFalse_h128_t4_steps4_initFalse_bs16_lr0.0003_hdf5_noise0_inframes16_outframes2_subx1_subt1_20260328_124504/best-checkpoint.ckpt
 OUTPUT_DIR=./test_time_compute/results/rebuttal/euler_no_codebook_fast
 
 echo "=========================================="

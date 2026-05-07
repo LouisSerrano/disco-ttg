@@ -277,7 +277,7 @@ def main():
     dispersion_model_path = "test_results/parameter_grid/models/adv_1.0_nu_0.1_steps_1/advection_model.pth"
     
     # Test data path - same as single sample script
-    test_data_path = "/mnt/home/lserrano/LPSDA/data/OP_HEAT_valid.h5"
+    test_data_path = "./datasets/lpsda/OP_HEAT_valid.h5"
     
     # Create results directory
     results_dir = "test_results_multi_sample"

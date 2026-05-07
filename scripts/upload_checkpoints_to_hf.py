@@ -19,7 +19,7 @@ from huggingface_hub import HfApi, create_repo, upload_file
 PAPER_CKPTS = {
     "advection-diffusion": {
         "src": (
-            "/mnt/home/lserrano/ceph/disco/outputs/"
+            "./outputs/"
             "DISCO_advection-diffusion_solverrk4_adjFalse_h128_t2_steps1_initTrue"
             "_bs512_lr0.001_ctxTrue_noise0_inframes16_outframes16_T10/last.ckpt"
         ),
@@ -27,7 +27,7 @@ PAPER_CKPTS = {
     },
     "navier-stokes": {
         "src": (
-            "/mnt/home/lserrano/ceph/disco/outputs/"
+            "./outputs/"
             "DISCO_euler_solverrk4_adjFalse_h128_t4_steps4_initFalse_bs16_lr0.0003"
             "_hdf5_noise0_inframes16_outframes2_subx1_subt1_20260124_041037/best-checkpoint.ckpt"
         ),
@@ -35,7 +35,7 @@ PAPER_CKPTS = {
     },
     "combined-equation": {
         "src": (
-            "/mnt/home/lserrano/ceph/disco/outputs/"
+            "./outputs/"
             "DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue"
             "_bs64_lr0.0005_hdf5_noise0_inframes16_outframes16_subx1_subt1_20250902_141155/last.ckpt"
         ),
@@ -44,7 +44,7 @@ PAPER_CKPTS = {
     # Reaction-diffusion: pick the latest one matching the paper config.
     "reaction-diffusion": {
         "src": (
-            "/mnt/home/lserrano/ceph/disco/outputs/"
+            "./outputs/"
             "DISCO_rd_solverrk4_adjFalse_h128_t3_steps1_initFalse_bs64_lr0.0003"
             "_hdf5_noise0_inframes16_outframes2_subx1_subt1_20250916_204203/last.ckpt"
         ),

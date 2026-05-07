@@ -11,10 +11,10 @@ training:
 data:
   dataset_name: "advection-diffusion"
   setting: "scarce"
-  train_path: "/mnt/home/lserrano/disco-ttg/datasets/train_${data.setting}.npz"
-  val_path: "/mnt/home/lserrano/disco-ttg/datasets/val_${data.setting}.npz"
-  test_path: "/mnt/home/lserrano/disco-ttg/datasets/test_${data.setting}.npz"
-  output_dir: "/mnt/home/lserrano/disco-ttg/outputs/"
+  train_path: "${oc.env:DISCO_DATA,datasets}/train_${data.setting}.npz"
+  val_path: "${oc.env:DISCO_DATA,datasets}/val_${data.setting}.npz"
+  test_path: "${oc.env:DISCO_DATA,datasets}/test_${data.setting}.npz"
+  output_dir: "${oc.env:DISCO_OUTPUTS,outputs}/"
   sub_x: 1
   sub_t: 1
   n_input_frames: 16
@@ -62,5 +62,5 @@ test:
   setting: "dense"  # or "scarce"
   n_input: 16
   n_pred: 50
-  results_dir: "/mnt/home/lserrano/disco-ttg/results/"
+  results_dir: "${oc.env:DISCO_RESULTS,results}/"
   splits: ["train", "val", "test"]

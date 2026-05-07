@@ -877,7 +877,7 @@ def main(cfg: DictConfig):
             return result
         
         # Default fallback
-        default_files = ["/mnt/home/lserrano/MP-Neural-PDE-Solvers/data/E_EULER_train_1024.h5"]
+        default_files = ["./datasets/mp-neural/E_EULER_train_1024.h5"]
         print(f"Warning: No HDF5 files specified for {split_name}, using default: {default_files}")
         return default_files
 

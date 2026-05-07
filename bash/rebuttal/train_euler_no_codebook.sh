@@ -37,4 +37,4 @@ python3 train/train_euler_diffusion_aggregate.py \
     model.use_adjoint=False \
     model.decoder_use_bias=True \
     model.principled_initialization=False \
-    data.output_dir=/mnt/home/lserrano/ceph/disco/outputs/
+    data.output_dir=${DISCO_CKPT_DIR:-./outputs}/

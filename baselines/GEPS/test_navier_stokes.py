@@ -19,8 +19,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-sys.path.append("/mnt/home/lserrano/disco-ttg/")
-sys.path.append("/mnt/home/lserrano/disco-ttg/test_time_compute")
+sys.path.append("./disco-ttg/")
+sys.path.append("./disco-ttg/test_time_compute")
 
 from ttc_utils import (
     save_results,
@@ -236,7 +236,7 @@ def main():
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate for code optimization')
     parser.add_argument('--weight_decay', type=float, default=0.0, help='Weight decay for code optimization')
     parser.add_argument('--n_pred', type=int, default=1, help='Number of predictions to use during optimization')
-    parser.add_argument('--file_dir', type=str, default='/mnt/home/lserrano/ceph/data/euler_ns_short/',
+    parser.add_argument('--file_dir', type=str, default='./datasets/euler_ns_short/',
                         help='Path to data directory')
     parser.add_argument('--num_gpus', type=int, default=8, help='Number of GPU files')
     parser.add_argument('--n_input_frames', type=int, default=16, help='Number of input frames')

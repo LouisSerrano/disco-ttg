@@ -626,7 +626,7 @@ def main():
     
     parser = argparse.ArgumentParser(description='Analyze neural operator splitting results')
     parser.add_argument('--results_dir', type=str, 
-                       default='/mnt/home/lserrano/disco-ttg/neural-operator-splitting/test_results',
+                       default='./paper/neural-operator-splitting/test_results',
                        help='Directory containing test results')
     parser.add_argument('--create_report', action='store_true',
                        help='Create comprehensive HTML report')
