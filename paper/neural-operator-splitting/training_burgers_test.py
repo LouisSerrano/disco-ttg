@@ -310,7 +310,7 @@ class NeuralODETrainer:
 
 def run_overfitting_experiments(
     K: int = 1,
-    dataset_path: str = '/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_train_8192.h5',
+    dataset_path: str = '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_train_8192.h5',
     nx: int = 256,
     L: float = 16.0,
     hidden_dim: int = 32,
@@ -471,7 +471,7 @@ def parse_args():
                         help='Number of independent experiments (default: 1)')
     
     parser.add_argument('--dataset_path', type=str, 
-                        default='/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_train_8192.h5',
+                        default='/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_train_8192.h5',
                         help='Path to HDF5 dataset')
     
     parser.add_argument('--nx', type=int, default=256,

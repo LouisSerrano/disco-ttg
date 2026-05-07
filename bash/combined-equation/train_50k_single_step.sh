@@ -30,7 +30,7 @@ python3 train/train_combined.py \
     training.in_context_progressive=True \
     training.max_steps=50000 \
     training.progressive_steps=False \
-    training.project="disco-ball-50k-single" \
+    training.project="disco-ttg-50k-single" \
     training.lr=5e-4 \
     training.batch_size=64 \
     data.n_output_frames=16 \

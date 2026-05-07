@@ -1,5 +1,5 @@
 training:
-  project: "disco-ball"
+  project: "disco-ttg"
   max_steps: 100000
   batch_size: 256 #64 before
   lr: 3e-4
@@ -10,14 +10,14 @@ training:
 data:
   dataset_name: "advection-diffusion"
   setting: "scarce"
-  train_path: "/mnt/home/lserrano/disco-ball/datasets/train_${data.setting}.npz"
-  val_path: "/mnt/home/lserrano/disco-ball/datasets/val_${data.setting}.npz"
-  test_path: "/mnt/home/lserrano/disco-ball/datasets/test_${data.setting}.npz"
+  train_path: "/mnt/home/lserrano/disco-ttg/datasets/train_${data.setting}.npz"
+  val_path: "/mnt/home/lserrano/disco-ttg/datasets/val_${data.setting}.npz"
+  test_path: "/mnt/home/lserrano/disco-ttg/datasets/test_${data.setting}.npz"
   sub_x: 1
   sub_t: 1
   n_input_frames: 16
   n_output_frames: 3
-  output_dir: "/mnt/home/lserrano/disco-ball/outputs/"
+  output_dir: "/mnt/home/lserrano/disco-ttg/outputs/"
   # Dataset generation parameters
   L: 16.0
   nx: 256

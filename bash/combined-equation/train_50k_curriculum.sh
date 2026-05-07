@@ -31,7 +31,7 @@ python3 train/train_combined_curriculum.py \
     training.curriculum_start_frames=1 \
     training.curriculum_end_frames=32 \
     training.curriculum_warmup_steps=45000 \
-    training.project="disco-ball-50k-curriculum" \
+    training.project="disco-ttg-50k-curriculum" \
     training.lr=5e-4 \
     training.batch_size=64 \
     data.n_output_frames=32 \

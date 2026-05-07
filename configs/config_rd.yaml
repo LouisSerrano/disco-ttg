@@ -1,5 +1,5 @@
 training:
-  project: "disco-ball"
+  project: "disco-ttg"
   max_steps: 10000
   batch_size: 64
   lr: 3e-4
@@ -35,7 +35,7 @@ data:
     - "/mnt/home/lserrano/gray-scott-python/data/val_kill_20params_8traj_each.hdf5"
   # Legacy support - will be ignored if train_hdf5_files is present
 
-  output_dir: "/mnt/home/lserrano/disco-ball/outputs/"
+  output_dir: "/mnt/home/lserrano/disco-ttg/outputs/"
   sub_x: 1
   sub_t: 1
   n_input_frames: 16
@@ -68,6 +68,6 @@ model:
 
 test:
   dataset_name: "euler_hdf5"
-  results_dir: "/mnt/home/lserrano/disco-ball/results/"
+  results_dir: "/mnt/home/lserrano/disco-ttg/results/"
   splits: ["train", "val", "test"]
   num_steps: 1

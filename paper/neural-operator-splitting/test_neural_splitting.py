@@ -745,7 +745,7 @@ def main():
         L=16,
         beta=args.beta,
         nu=args.nu,
-        results_dir='/mnt/home/lserrano/disco-ball/neural-operator-splitting/test_results_dopri5'
+        results_dir='/mnt/home/lserrano/disco-ttg/neural-operator-splitting/test_results_dopri5'
     )
     
     # Choose test type based on command line argument

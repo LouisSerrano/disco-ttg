@@ -23,11 +23,11 @@ Paths in these configs need to be swapped for your environment:
 
 | Field | Default value |
 |---|---|
-| `data.train_path` / `val_path` / `test_path` | `/mnt/home/lserrano/disco-ball/datasets/...` |
-| `data.train_hdf5_files` (list) | `/mnt/home/lserrano/disco-ball/datasets/combined_equation/*.h5` |
+| `data.train_path` / `val_path` / `test_path` | `/mnt/home/lserrano/disco-ttg/datasets/...` |
+| `data.train_hdf5_files` (list) | `/mnt/home/lserrano/disco-ttg/datasets/combined_equation/*.h5` |
 | `data.file_dir` (Euler config) | `/mnt/home/lserrano/ceph/data/euler_ns_short/` |
-| `data.output_dir` | `/mnt/home/lserrano/disco-ball/outputs/` |
-| `data.results_dir` | `/mnt/home/lserrano/disco-ball/results/` |
+| `data.output_dir` | `/mnt/home/lserrano/disco-ttg/outputs/` |
+| `data.results_dir` | `/mnt/home/lserrano/disco-ttg/results/` |
 
 To find every occurrence: `grep -rn "/mnt/home/lserrano" configs/`.
 

@@ -9,7 +9,7 @@
 #   huggingface_hub. If hf_repo_id is null, the local paths in *_files are used.
 
 training:
-  project: "disco-ball"
+  project: "disco-ttg"
   run_name: null            # auto-generated if null
   max_steps: 100000
   batch_size: 64

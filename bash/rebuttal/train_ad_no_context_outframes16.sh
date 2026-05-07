@@ -18,7 +18,7 @@ source $VENVDIR/disco/bin/activate
 
 unset WANDB_API_KEY
 export WANDB_ENTITY=emmi-ai
-export WANDB_PROJECT=disco-ball
+export WANDB_PROJECT=disco-ttg
 
 # Rebuttal experiment: advection-diffusion WITHOUT in-context learning (outframes=16)
 # Matches the paper's checkpoint config (outframes=16, initFalse, lr=5e-4)

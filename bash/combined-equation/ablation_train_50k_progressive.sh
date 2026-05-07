@@ -17,7 +17,7 @@ source $VENVDIR/disco/bin/activate
 
 # Train for 50k steps with progressive step increase: 80% at 1 step, 5% each at 2,4,8,16 steps
 # Resume from checkpoint to accelerate training
-#CHECKPOINT_PATH=/mnt/home/lserrano/disco-ball/outputs/DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue_bs64_lr0.0005_hdf5_noise0_inframes16_outframes16_subx1_subt1/last-v1.ckpt
+#CHECKPOINT_PATH=/mnt/home/lserrano/disco-ttg/outputs/DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue_bs64_lr0.0005_hdf5_noise0_inframes16_outframes16_subx1_subt1/last-v1.ckpt
 
 #"outputs/DISCO_combined-physics-hdf5_solverrk4_adjFalse_h128_t3_steps1_initTrue_bs64_lr0.0005_hdf5_noise0_inframes16_outframes16_subx1_subt1/last-v1.ckpt"
 
@@ -33,7 +33,7 @@ python3 train/train_combined_ablations.py \
     training.progressive_steps=True \
     training.step_schedule="[1,2,4]" \
     training.step_percentages="[0.9,0.05,0.05]" \
-    training.project="disco-ball-50k-progressive" \
+    training.project="disco-ttg-50k-progressive" \
     training.lr=5e-4 \
     training.batch_size=64 \
     data.n_output_frames=64 \

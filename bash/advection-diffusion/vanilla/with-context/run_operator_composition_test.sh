@@ -15,7 +15,7 @@ module load nccl
 
 source $VENVDIR/disco/bin/activate 
 
-CHECKPOINT="/mnt/home/lserrano/disco-ball/outputs/DISCO_advection-diffusion_solverrk4_adjFalse_h128_t2_steps1_initFalse_bs64_lr0.0005_ctxTrue_noise0.0001_inframes16_outframes2_T10/last-v1.ckpt"
+CHECKPOINT="/mnt/home/lserrano/disco-ttg/outputs/DISCO_advection-diffusion_solverrk4_adjFalse_h128_t2_steps1_initFalse_bs64_lr0.0005_ctxTrue_noise0.0001_inframes16_outframes2_T10/last-v1.ckpt"
 
 # Test case 1: advection (0.9,1), diffusion (0.9,1) - baseline case
 echo "Testing advection (0.9,1), diffusion (0.9,1)"

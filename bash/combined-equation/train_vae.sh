@@ -27,7 +27,7 @@ python3 train/train_combined_vae.py \
     model.theta_dim=3 \
     training.max_steps=300000 \
     training.progressive_steps=False \
-    training.project="disco-ball" \
+    training.project="disco-ttg" \
     training.lr=5e-4 \
     training.batch_size=32 \
     training.in_context=False \

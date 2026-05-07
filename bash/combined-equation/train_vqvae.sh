@@ -29,7 +29,7 @@ python3 train/train_combined_vqvae.py \
     model.codebook_size=512 \
     training.max_steps=50000 \
     training.progressive_steps=True \
-    training.project="disco-ball" \
+    training.project="disco-ttg" \
     training.lr=5e-4 \
     training.batch_size=128 \
     training.in_context=True \

@@ -335,24 +335,24 @@ def test(args):
         EXPERIMENT_FILES = {
 
         'E_DEBUG': {
-            'train': '/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_valid.h5',
-            #'test': '/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_BG_test.h5'
+            'train': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_HEAT_valid.h5',
+            #'test': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_BG_test.h5'
         },    
         'E_BG': {
             'train': '/mnt/home/lserrano/ceph/E_BG_train_gridparam512.h5',
-            #'test': '/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_BG_test.h5'
+            #'test': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_BG_test.h5'
         },
         'E_ED': {
             'train': '/mnt/home/lserrano/ceph/E_ED_train_gridparam512.h5',
-            #'test': '/mnt/home/lserrano/disco-ball/datasets/combined_equation/ood/E_ED_test.h5'
+            #'test': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/ood/E_ED_test.h5'
         },
         'E_HE': {
             'train': '/mnt/home/lserrano/ceph/E_HE_train_gridparam512.h5',
-            #'test': '/mnt/home/lserrano/disco-ball/datasets/combined_equation/ood/E_HE_test.h5'
+            #'test': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/ood/E_HE_test.h5'
         },
         'E_ALL': {
             'train': '/mnt/home/lserrano/ceph/E_ALL_train_gridparam512.h5',
-            #'test': '/mnt/home/lserrano/disco-ball/datasets/combined_equation/test.h5'
+            #'test': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/test.h5'
         },
         'E_EULER_OOD': {
             'train': '/mnt/home/lserrano/ceph/E_EULER_OOD_train_envsize16.h5',

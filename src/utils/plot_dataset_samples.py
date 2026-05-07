@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os
 import random
 
-data_dir = "/mnt/home/lserrano/disco-ball/datasets"
+data_dir = "/mnt/home/lserrano/disco-ttg/datasets"
 plot_dir = "./datasets/plots"
 os.makedirs(plot_dir, exist_ok=True)
 

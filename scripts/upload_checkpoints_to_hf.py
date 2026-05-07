@@ -80,7 +80,7 @@ from train.train_generic import DISCOLitModule
 model = DISCOLitModule.load_from_checkpoint("last.ckpt")
 ```
 
-Code: https://github.com/LouisSerrano/disco-ball
+Code: https://github.com/LouisSerrano/disco-ttg
 """
 
 

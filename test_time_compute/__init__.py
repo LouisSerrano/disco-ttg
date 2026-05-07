@@ -1,7 +1,7 @@
 """Test-time compute package.
 
-Importing this package ensures the disco-ball repo root is at sys.path[0], so that
-`from train.train import ...` resolves to disco-ball/train rather than to a
+Importing this package ensures the disco-ttg repo root is at sys.path[0], so that
+`from train.train import ...` resolves to disco-ttg/train rather than to a
 collision (e.g. an installed `geps` editable package that ships a top-level train.py).
 """
 import os

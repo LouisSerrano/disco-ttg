@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="disco-ball",
+    name="disco-ttg",
     version="0.1.0",
     description="DISCO: Test-Time Generalization via Neural Operator Splitting",
     author="Louis Serrano",

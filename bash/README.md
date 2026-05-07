@@ -19,8 +19,8 @@ These scripts contain absolute paths from the original development environment. 
 
 | Path prefix | What it points to |
 |---|---|
-| `/mnt/home/lserrano/disco-ball/datasets/combined_equation/` | HDF5 datasets (Burgers/heat/dispersion/Euler) |
-| `/mnt/home/lserrano/disco-ball/outputs/` | DISCO training output dir (checkpoints) |
+| `/mnt/home/lserrano/disco-ttg/datasets/combined_equation/` | HDF5 datasets (Burgers/heat/dispersion/Euler) |
+| `/mnt/home/lserrano/disco-ttg/outputs/` | DISCO training output dir (checkpoints) |
 | `/mnt/home/lserrano/ceph/disco/outputs/` | Alternate (ceph) checkpoint location |
 | `/mnt/home/lserrano/ceph/geps/` | GEPS baseline checkpoints |
 | `/mnt/home/lserrano/ceph/zebra/` | ZEBRA tokenizer + LLaMA checkpoints |

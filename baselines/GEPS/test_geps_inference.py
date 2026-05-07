@@ -9,7 +9,7 @@ import numpy as np
 from einops import rearrange
 import copy
 
-sys.path.append("/mnt/home/lserrano/disco-ball/test_time_compute")
+sys.path.append("/mnt/home/lserrano/disco-ttg/test_time_compute")
 
 from ttc_utils import (
     save_results,
@@ -305,7 +305,7 @@ def main():
             },
             'E_EULER':
             {
-                'train': '/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_valid.h5',
+                'train': '/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_valid.h5',
             },
              'E_EULER_OOD': {
                 'train': '/mnt/home/lserrano/ceph/E_EULER_OOD_train_envsize16.h5',},

@@ -27,7 +27,7 @@ python3 train/train_combined_vqvae.py \
     model.codebook_size=16 \
     training.max_steps=50000 \
     training.progressive_steps=True \
-    training.project="disco-ball-euler-only" \
+    training.project="disco-ttg-euler-only" \
     training.lr=5e-4 \
     training.batch_size=64 \
     training.in_context=False \

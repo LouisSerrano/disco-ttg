@@ -27,7 +27,7 @@ python3 train/train_combined_aggregate.py \
     model.theta_dim=3 \
     training.max_steps=200000 \
     training.progressive_steps=False \
-    training.project="disco-ball" \
+    training.project="disco-ttg" \
     training.lr=5e-4 \
     training.batch_size=64 \
     training.in_context=False \
@@ -35,7 +35,7 @@ python3 train/train_combined_aggregate.py \
     data.n_input_frames=16 \
     data.n_output_frames=2 \
     data.sub_t=1 \
-    data.train_hdf5_files=["/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_train_envsize128.h5","/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_train_envsize128.h5","/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_train_envsize128.h5"] \
+    data.train_hdf5_files=["/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_train_envsize128.h5","/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_HEAT_train_envsize128.h5","/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_DISP_train_envsize128.h5"] \
     data.trajectories_per_environment=128
 
     #data.train_hdf5_files=["/mnt/home/lserrano/LPSDA/data/E_EULER_train_8192.h5"] \

@@ -20,17 +20,17 @@ data:
   v_range: [0.01, 1.0]
   D_range: [0.001, 1.0]
   train_hdf5_files:
-    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_train_envsize64.h5"
-    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_train_envsize64.h5"
-    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_train_envsize64.h5"
+    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_train_envsize64.h5"
+    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_HEAT_train_envsize64.h5"
+    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_DISP_train_envsize64.h5"
   val_hdf5_files:
-    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_valid.h5"
-    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_valid.h5"
-    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_valid.h5"
+    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_valid.h5"
+    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_HEAT_valid.h5"
+    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_DISP_valid.h5"
   test_hdf5_files:
-    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_EULER_test.h5"
-    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_HEAT_test.h5"
-    - "/mnt/home/lserrano/disco-ball/datasets/combined_equation/E_DISP_test.h5"
+    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_EULER_test.h5"
+    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_HEAT_test.h5"
+    - "/mnt/home/lserrano/disco-ttg/datasets/combined_equation/E_DISP_test.h5"
 
 # Model parameters
 model:

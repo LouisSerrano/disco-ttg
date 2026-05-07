@@ -1,5 +1,5 @@
 training:
-  project: "disco-ball"
+  project: "disco-ttg"
   max_steps: 10000
   batch_size: 64
   lr: 3e-4
@@ -31,7 +31,7 @@ data:
   # Data file configuration - path to directory with trajectories_gpu*.h5 files
   file_dir: "/mnt/home/lserrano/ceph/data/euler_ns_short/"
   num_gpus: 8  # Number of GPU files to load
-  output_dir: "/mnt/home/lserrano/disco-ball/outputs/"
+  output_dir: "/mnt/home/lserrano/disco-ttg/outputs/"
   sub_x: 1
   sub_t: 1
   n_input_frames: 16
@@ -66,6 +66,6 @@ model:
 
 test:
   dataset_name: "euler"
-  results_dir: "/mnt/home/lserrano/disco-ball/results/"
+  results_dir: "/mnt/home/lserrano/disco-ttg/results/"
   splits: ["train", "val", "test"]
   num_steps: 1
