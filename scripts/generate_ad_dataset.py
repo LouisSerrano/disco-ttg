@@ -60,10 +60,7 @@ def main():
     np.random.seed(args.seed)
     random.seed(args.seed)
 
-    fractaloid = Fractaloid(
-        nx=args.nx, L=args.L,
-        degree=args.fractal_degree, power_range=args.fractal_power_range,
-    )
+    # Note: each sample picks its own fractaloid `power` (matching TemporalBatchDatasetFly).
 
     trajs = np.empty((args.num_samples, args.nt, 1, args.nx), dtype=np.float32)
     vs = np.empty(args.num_samples, dtype=np.float64)
@@ -73,6 +70,11 @@ def main():
     for i in range(args.num_samples):
         v = random.uniform(*args.v_range)
         D = random.uniform(*args.d_range)
+        power = random.uniform(0.5, args.fractal_power_range)
+        fractaloid = Fractaloid(
+            degree=args.fractal_degree, power=power,
+            size=args.nx, patch_size=args.nx,
+        )
         u0 = fractaloid.generate(batch_size=1, seed=None).squeeze(0).numpy()
         u_xt = advection_diffusion_analytical(u0, L=args.L, v=v, D=D, nt=args.nt, T=args.T)
         trajs[i, :, 0, :] = u_xt.astype(np.float32)
