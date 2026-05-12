@@ -19,8 +19,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-sys.path.append("./disco-ttg/")
-sys.path.append("./disco-ttg/test_time_compute")
+sys.path.append("./neural-operator-splitting/")
+sys.path.append("./neural-operator-splitting/test_time_compute")
 
 from ttc_utils import (
     save_results,

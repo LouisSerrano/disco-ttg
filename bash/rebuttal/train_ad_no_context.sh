@@ -18,7 +18,7 @@ source $VENVDIR/disco/bin/activate
 
 unset WANDB_API_KEY
 export WANDB_ENTITY=emmi-ai
-export WANDB_PROJECT=disco-ttg
+export WANDB_PROJECT=neural-operator-splitting
 
 # Rebuttal experiment: advection-diffusion WITHOUT in-context learning
 # Same config as paper (train.sh) but in_context=False

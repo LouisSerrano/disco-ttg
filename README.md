@@ -7,7 +7,7 @@ Louis Serrano, Jiequn Han, Edouard Oyallon, Shirley Ho, Rudy Morel.
 ## Project structure
 
 ```
-disco-ttg/
+neural-operator-splitting/
 ├── src/                      # Core library
 │   ├── operators/            # DISCO + variants (disco.py, disco_vae.py, ...)
 │   ├── modules/              # Neural network modules (UNet, MAE, tokenizer, VQ)
@@ -42,8 +42,8 @@ disco-ttg/
 ## Setup
 
 ```bash
-git clone https://github.com/LouisSerrano/disco-ttg.git
-cd disco-ttg
+git clone https://github.com/LouisSerrano/neural-operator-splitting.git
+cd neural-operator-splitting
 pip install -e .
 ```
 

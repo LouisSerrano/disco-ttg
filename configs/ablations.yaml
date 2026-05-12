@@ -1,5 +1,5 @@
 training:
-  project: "disco-ttg-operator"
+  project: "neural-operator-splitting-operator"
   max_steps: 100000
   batch_size: 64 #64 before
   lr: 1e-4

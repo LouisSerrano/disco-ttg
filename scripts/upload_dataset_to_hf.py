@@ -50,7 +50,7 @@ from huggingface_hub import hf_hub_download
 local = hf_hub_download(repo_id="{repo_id}", filename="train.h5", repo_type="dataset")
 ```
 
-Code: https://github.com/LouisSerrano/disco-ttg
+Code: https://github.com/LouisSerrano/neural-operator-splitting
 """
 
 

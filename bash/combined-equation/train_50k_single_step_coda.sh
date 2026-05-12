@@ -26,7 +26,7 @@ python3 train/train_combined_coda.py \
     model.theta_dim=3 \
     training.max_steps=50000 \
     training.progressive_steps=False \
-    training.project="disco-ttg-50k-single" \
+    training.project="neural-operator-splitting-50k-single" \
     training.lr=5e-4 \
     training.batch_size=64 \
     data.n_output_frames=16 \

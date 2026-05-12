@@ -18,7 +18,7 @@ source $VENVDIR/disco/bin/activate
 
 unset WANDB_API_KEY
 export WANDB_ENTITY=emmi-ai
-export WANDB_PROJECT=disco-ttg
+export WANDB_PROJECT=neural-operator-splitting
 
 # Rebuttal: mixed physics 50%, outframes=16
 python3 train/train.py \

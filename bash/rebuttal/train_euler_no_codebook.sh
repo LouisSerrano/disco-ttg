@@ -18,7 +18,7 @@ source $VENVDIR/disco/bin/activate
 
 unset WANDB_API_KEY
 export WANDB_ENTITY=emmi-ai
-export WANDB_PROJECT=disco-ttg
+export WANDB_PROJECT=neural-operator-splitting
 
 # Rebuttal experiment: Euler/NS WITHOUT codebook (codebook_prob=0.0)
 # Matches paper's Euler model config (theta_dim=4, max_steps=4, bs=16)

@@ -27,7 +27,7 @@ python3 train/train_combined_aggregate.py \
     model.theta_dim=3 \
     training.max_steps=100000 \
     training.progressive_steps=True \
-    training.project="disco-ttg" \
+    training.project="neural-operator-splitting" \
     training.lr=5e-4 \
     training.batch_size=64 \
     training.in_context=False \

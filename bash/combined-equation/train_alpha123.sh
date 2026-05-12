@@ -27,7 +27,7 @@ python3 train/train_combined_vqvae.py \
     model.codebook_size=16 \
     training.max_steps=50000 \
     training.progressive_steps=True \
-    training.project="disco-ttg-euler-only" \
+    training.project="neural-operator-splitting-euler-only" \
     training.lr=5e-4 \
     training.batch_size=64 \
     training.in_context=False \

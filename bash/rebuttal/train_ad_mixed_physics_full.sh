@@ -18,7 +18,7 @@ source $VENVDIR/disco/bin/activate
 
 unset WANDB_API_KEY
 export WANDB_ENTITY=emmi-ai
-export WANDB_PROJECT=disco-ttg
+export WANDB_PROJECT=neural-operator-splitting
 
 # Rebuttal experiment: advection-diffusion with 100% MIXED physics training
 # mixed_physics_ratio=1.0 => all samples have both v!=0 and D!=0

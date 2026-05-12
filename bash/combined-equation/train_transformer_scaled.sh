@@ -38,7 +38,7 @@ python3 train/train_combined.py \
     training.progressive_steps=True \
     training.step_schedule="[1,2,4]" \
     training.step_percentages="[0.9,0.05,0.05]" \
-    training.project="disco-ttg-transformer-scaled" \
+    training.project="neural-operator-splitting-transformer-scaled" \
     training.lr=5e-4 \
     training.batch_size=64 \
     data.n_output_frames=16 \

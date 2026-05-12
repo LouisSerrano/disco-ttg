@@ -33,7 +33,7 @@ python3 train/train_combined_ablations.py \
     training.progressive_steps=True \
     training.step_schedule="[1,2,4]" \
     training.step_percentages="[0.9,0.05,0.05]" \
-    training.project="disco-ttg-50k-progressive" \
+    training.project="neural-operator-splitting-50k-progressive" \
     training.lr=5e-4 \
     training.batch_size=64 \
     data.n_output_frames=64 \

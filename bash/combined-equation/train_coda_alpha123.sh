@@ -26,7 +26,7 @@ python3 train/train_combined_coda.py \
     model.theta_dim=128 \
     training.max_steps=30000 \
     training.progressive_steps=True \
-    training.project="disco-ttg-euler-only" \
+    training.project="neural-operator-splitting-euler-only" \
     training.lr=5e-4 \
     training.batch_size=64 \
     data.n_input_frames=16 \
