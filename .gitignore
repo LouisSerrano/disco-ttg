@@ -224,3 +224,4 @@ wandb/
 
 # PDFs
 *.pdf
+!assets/icml-poster.pdf

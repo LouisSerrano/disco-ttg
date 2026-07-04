@@ -4,6 +4,14 @@
 Louis Serrano, Jiequn Han, Edouard Oyallon, Shirley Ho, Rudy Morel.
 *ICML 2026.*
 
+[![arXiv](https://img.shields.io/badge/arXiv-2602.00884-b31b1b.svg)](https://arxiv.org/abs/2602.00884)
+[![Project page](https://img.shields.io/badge/Project-page-blue.svg)](https://louisserrano.github.io/neural-operator-splitting/)
+[![Poster](https://img.shields.io/badge/ICML-poster-brightgreen.svg)](assets/icml-poster.pdf)
+
+- **Paper (arXiv):** https://arxiv.org/abs/2602.00884
+- **Project page:** https://louisserrano.github.io/neural-operator-splitting/
+- **ICML 2026 poster:** [`assets/icml-poster.pdf`](assets/icml-poster.pdf)
+
 ## Project structure
 
 ```
@@ -35,6 +43,7 @@ neural-operator-splitting/
 ├── configs/                  # Hydra YAML configs
 ├── bash/                     # SLURM launch scripts
 ├── scripts/                  # data conversion + HF upload helpers
+├── assets/                   # ICML 2026 poster + figures
 ├── setup.py
 └── LICENSE
 ```
