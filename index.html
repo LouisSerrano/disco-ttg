@@ -628,6 +628,9 @@ footer {
   gap: 40px;
   padding: 48px 0 0;
 }
+/* let grid items shrink below their content's intrinsic width so the BibTeX
+   <pre> scrolls internally instead of stretching the whole page */
+footer > div { min-width: 0; }
 footer .eyebrow { margin-bottom: 8px; }
 footer pre {
   background: var(--card);
@@ -635,12 +638,13 @@ footer pre {
   padding: 14px 16px;
   font-family: ui-monospace, monospace;
   font-size: 12.5px; line-height: 1.55;
-  overflow-x: auto;
-  white-space: pre;
+  white-space: pre-wrap;      /* wrap long lines on narrow screens */
+  overflow-wrap: anywhere;    /* break over-long tokens if needed */
   margin: 0;
+  max-width: 100%;
 }
 footer ul { list-style: none; padding: 0; margin: 0; }
-footer li { padding: 4px 0; font-size: 15px; }
+footer li { padding: 4px 0; font-size: 15px; overflow-wrap: anywhere; }
 
 /* =========================================================================
    Responsive
