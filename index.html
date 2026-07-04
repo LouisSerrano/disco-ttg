@@ -145,8 +145,14 @@ header.masthead h1 .emph {
 .byline { display: flex; flex-direction: column; gap: 6px; }
 .authors {
   font-size: 16.5px; line-height: 1.5;
+  display: flex; flex-wrap: wrap; align-items: baseline; row-gap: 4px;
 }
+/* each name stays intact; the middot rides along with its author so it never
+   wraps to the start of a line, and the flex row wraps cleanly on phones */
 .author { white-space: nowrap; }
+.author:not(:last-child)::after {
+  content: "·"; color: var(--rule); margin: 0 9px;
+}
 .author sup { color: var(--muted); margin-left: 1px; }
 .author sup.corr { color: var(--d); font-weight: 700; }
 .author-link {
@@ -687,7 +693,7 @@ footer li { padding: 4px 0; font-size: 15px; }
     <span class="emph">neural operator splitting</span>
   </h1>
   <div class="byline">
-    <p class="authors"><span class="author"><a class="author-link" href="https://scholar.google.com/citations?user=fKlo-lUAAAAJ&hl=fr" target="_blank" rel="noopener">Louis Serrano</a><sup>2,3,6</sup></span><span class='sep'>·</span><span class="author"><a class="author-link" href="https://users.flatironinstitute.org/~jhan/" target="_blank" rel="noopener">Jiequn Han</a><sup>1</sup></span><span class='sep'>·</span><span class="author"><a class="author-link" href="https://edouardoyallon.github.io/" target="_blank" rel="noopener">Edouard Oyallon</a><sup>5</sup></span><span class='sep'>·</span><span class="author"><a class="author-link" href="https://www.shirleyho.space/" target="_blank" rel="noopener">Shirley Ho</a><sup>1,2,3,4</sup></span><span class='sep'>·</span><span class="author"><a class="author-link" href="https://rudymorel.github.io/" target="_blank" rel="noopener">Rudy Morel</a><sup>1,2</sup><sup class="corr">✱</sup></span></p>
+    <p class="authors"><span class="author"><a class="author-link" href="https://scholar.google.com/citations?user=fKlo-lUAAAAJ&hl=fr" target="_blank" rel="noopener">Louis Serrano</a><sup>2,3,6</sup></span><span class="author"><a class="author-link" href="https://users.flatironinstitute.org/~jhan/" target="_blank" rel="noopener">Jiequn Han</a><sup>1</sup></span><span class="author"><a class="author-link" href="https://edouardoyallon.github.io/" target="_blank" rel="noopener">Edouard Oyallon</a><sup>5</sup></span><span class="author"><a class="author-link" href="https://www.shirleyho.space/" target="_blank" rel="noopener">Shirley Ho</a><sup>1,2,3,4</sup></span><span class="author"><a class="author-link" href="https://rudymorel.github.io/" target="_blank" rel="noopener">Rudy Morel</a><sup>1,2</sup><sup class="corr">✱</sup></span></p>
     <p class="affiliations"><span class="aff"><span class="k">1</span>Flatiron Institute</span><span class="aff"><span class="k">2</span>Polymathic AI</span><span class="aff"><span class="k">3</span>New York University</span><span class="aff"><span class="k">4</span>Princeton University</span><span class="aff"><span class="k">5</span>Sorbonne Université, CNRS, ISIR</span><span class="aff"><span class="k">6</span>Mistral AI</span></p>
     <p class="corr-line">first author <a href="mailto:louis.serrano@mistral.ai">louis.serrano@mistral.ai</a> &nbsp;·&nbsp; <sup class="corr">✱</sup> corresponding author <a href="mailto:rmorel@flatironinstitute.org">rmorel@flatironinstitute.org</a></p>
   </div>
