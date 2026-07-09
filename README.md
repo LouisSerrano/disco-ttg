@@ -1,5 +1,3 @@
-# DISCO
-
 **Test-time Generalization for Physics through Neural Operator Splitting**
 Louis Serrano, Jiequn Han, Edouard Oyallon, Shirley Ho, Rudy Morel.
 *ICML 2026.*
